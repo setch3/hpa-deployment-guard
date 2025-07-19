@@ -1,0 +1,32 @@
+# kind クラスター設定ファイル
+# HPA Deployment Validator用のKubernetes環境
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: hpa-validator-cluster
+nodes:
+- role: control-plane
+  # Kubernetes v1.28.0を使用（安定版）
+  image: kindest/node:v1.28.0@sha256:b7a4cad12c197af3ba43202d3efe03246b3f0793f162afb40a33c923952d5b31
+  kubeadmConfigPatches:
+  - |
+    kind: InitConfiguration
+    nodeRegistration:
+      kubeletExtraArgs:
+        node-labels: "ingress-ready=true"
+  extraPortMappings:
+  # Webhook用のポート（8443）をホストに公開
+  - containerPort: 8443
+    hostPort: 8443
+    protocol: TCP
+  # 追加のデバッグ用ポート
+  - containerPort: 9443
+    hostPort: 9443
+    protocol: TCP
+# ネットワーク設定
+networking:
+  # デフォルトのPodサブネット
+  podSubnet: "10.244.0.0/16"
+  # デフォルトのServiceサブネット  
+  serviceSubnet: "10.96.0.0/12"
+  # APIサーバーのポート
+  apiServerPort: 6443

@@ -1,0 +1,63 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: k8s-deployment-hpa-validator-config
+  namespace: default
+  labels:
+    app: k8s-deployment-hpa-validator
+    version: v1.0.0
+    component: config
+data:
+  # Webhook設定
+  webhook.yaml: |
+    server:
+      port: 8443
+      certFile: "/etc/certs/tls.crt"
+      keyFile: "/etc/certs/tls.key"
+      readTimeout: "30s"
+      writeTimeout: "30s"
+      idleTimeout: "60s"
+    
+    validation:
+      enabled: true
+      failurePolicy: "Fail"
+      timeoutSeconds: 10
+      
+    logging:
+      level: "info"
+      format: "json"
+      
+    metrics:
+      enabled: true
+      port: 8080
+      path: "/metrics"
+      
+    health:
+      livenessPath: "/livez"
+      readinessPath: "/readyz"
+      
+  # エラーメッセージ設定（日本語）
+  messages.yaml: |
+    errors:
+      deploymentWithHPA: "1 replicaのDeploymentにHPAが設定されています。HPAを削除するか、replicasを2以上に設定してください。"
+      hpaWithSingleReplica: "1 replicaのDeploymentを対象とするHPAは作成できません。Deploymentのreplicasを2以上に設定してください。"
+      systemFailure: "システムエラーが発生しました。管理者に連絡してください。"
+      
+    warnings:
+      certificateExpiringSoon: "証明書の有効期限が近づいています。更新を検討してください。"
+      
+  # 監視対象リソース設定
+  resources.yaml: |
+    watchedResources:
+      - apiVersion: "apps/v1"
+        kind: "Deployment"
+        namespaces: []  # 空の場合は全ネームスペース
+        
+      - apiVersion: "autoscaling/v2"
+        kind: "HorizontalPodAutoscaler"
+        namespaces: []  # 空の場合は全ネームスペース
+        
+    excludedNamespaces:
+      - "kube-system"
+      - "kube-public"
+      - "kube-node-lease"

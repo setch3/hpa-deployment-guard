@@ -1,0 +1,33 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: hpa-deployment-validator
+  labels:
+    app: k8s-deployment-hpa-validator
+    version: v1.0.0
+webhooks:
+- name: hpa-deployment-validator.example.com
+  clientConfig:
+    service:
+      name: k8s-deployment-hpa-validator
+      namespace: default
+      path: "/validate"
+    caBundle: ""
+  rules:
+  - operations: ["CREATE", "UPDATE"]
+    apiGroups: ["apps"]
+    apiVersions: ["v1"]
+    resources: ["deployments"]
+  - operations: ["CREATE", "UPDATE"]
+    apiGroups: ["autoscaling"]
+    apiVersions: ["v2"]
+    resources: ["horizontalpodautoscalers"]
+  admissionReviewVersions: ["v1", "v1beta1"]
+  sideEffects: None
+  failurePolicy: Fail
+  timeoutSeconds: 10
+  namespaceSelector:
+    matchExpressions:
+    - key: name
+      operator: NotIn
+      values: ["kube-system", "kube-public", "kube-node-lease"]
