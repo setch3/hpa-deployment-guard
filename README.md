@@ -511,13 +511,3 @@ docker buildx build --platform linux/amd64,linux/arm64 -t hpa-validator:v1.0.0 .
 ## ライセンス
 
 このプロジェクトはMITライセンスの下で公開されています。
-
-## 貢献
-
-プルリクエストやイシューの報告を歓迎します。貢献する前に、テストが全て通ることを確認してください。
-
-```bash
-# 貢献前のチェック
-make test
-make e2e-full
-```
