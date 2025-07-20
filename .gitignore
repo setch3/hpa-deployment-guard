@@ -189,3 +189,5 @@ docker-compose.local.yml
 .kiro/specs/*/tasks.md.bak
 .kiro/specs/*/requirements.md.bak
 .kiro/specs/*/design.md.bak
+
+PR_MESSAGE.md

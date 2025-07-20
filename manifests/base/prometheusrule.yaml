@@ -1,0 +1,187 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: k8s-deployment-hpa-validator-alerts
+  labels:
+    app: k8s-deployment-hpa-validator
+    component: alerts
+spec:
+  groups:
+  - name: webhook.rules
+    interval: 30s
+    rules:
+    # Webhook稼働状態アラート
+    - alert: WebhookDown
+      expr: webhook_up == 0
+      for: 1m
+      labels:
+        severity: critical
+        component: webhook
+      annotations:
+        summary: "Webhook service is down"
+        description: "The k8s-deployment-hpa-validator webhook has been down for more than 1 minute."
+        runbook_url: "https://github.com/your-org/k8s-deployment-hpa-validator/blob/main/docs/runbook.md#webhook-down"
+
+    # 高いエラー率アラート
+    - alert: WebhookHighErrorRate
+      expr: |
+        (
+          rate(webhook_requests_total{status="error"}[5m]) /
+          rate(webhook_requests_total[5m])
+        ) > 0.1
+      for: 2m
+      labels:
+        severity: warning
+        component: webhook
+      annotations:
+        summary: "High error rate in webhook requests"
+        description: "The webhook error rate is {{ $value | humanizePercentage }} over the last 5 minutes."
+        runbook_url: "https://github.com/your-org/k8s-deployment-hpa-validator/blob/main/docs/runbook.md#high-error-rate"
+
+    # 高いレスポンス時間アラート
+    - alert: WebhookHighLatency
+      expr: |
+        histogram_quantile(0.95, 
+          rate(webhook_request_duration_seconds_bucket[5m])
+        ) > 1.0
+      for: 5m
+      labels:
+        severity: warning
+        component: webhook
+      annotations:
+        summary: "High latency in webhook requests"
+        description: "95th percentile latency is {{ $value }}s over the last 5 minutes."
+        runbook_url: "https://github.com/your-org/k8s-deployment-hpa-validator/blob/main/docs/runbook.md#high-latency"
+
+    # 証明書有効期限アラート（30日前）
+    - alert: WebhookCertificateExpiringSoon
+      expr: webhook_certificate_expiry_days < 30 and webhook_certificate_expiry_days > 7
+      for: 1h
+      labels:
+        severity: warning
+        component: certificate
+      annotations:
+        summary: "Webhook TLS証明書の有効期限が近づいています"
+        description: "WebhookのTLS証明書が{{ $value }}日後に期限切れになります。証明書の更新を確認してください。"
+        runbook_url: "https://github.com/your-org/k8s-deployment-hpa-validator/blob/main/docs/runbook.md#certificate-expiring"
+
+    # 証明書有効期限アラート（7日前）
+    - alert: WebhookCertificateExpiringCritical
+      expr: webhook_certificate_expiry_days < 7 and webhook_certificate_expiry_days > 0
+      for: 30m
+      labels:
+        severity: critical
+        component: certificate
+      annotations:
+        summary: "Webhook TLS証明書の有効期限が迫っています"
+        description: "WebhookのTLS証明書が{{ $value }}日後に期限切れになります。緊急に証明書の更新が必要です。"
+        runbook_url: "https://github.com/your-org/k8s-deployment-hpa-validator/blob/main/docs/runbook.md#certificate-expiring-critical"
+
+    # 証明書有効期限切れアラート
+    - alert: WebhookCertificateExpired
+      expr: webhook_certificate_expiry_days <= 0
+      for: 0m
+      labels:
+        severity: critical
+        component: certificate
+      annotations:
+        summary: "Webhook TLS証明書の有効期限が切れています"
+        description: "WebhookのTLS証明書の有効期限が切れています。即座に証明書を更新してください。"
+        runbook_url: "https://github.com/your-org/k8s-deployment-hpa-validator/blob/main/docs/runbook.md#certificate-expired"
+
+    # 証明書が無効アラート
+    - alert: WebhookCertificateInvalid
+      expr: webhook_certificate_valid == 0
+      for: 1m
+      labels:
+        severity: critical
+        component: certificate
+      annotations:
+        summary: "Webhook TLS証明書が無効です"
+        description: "WebhookのTLS証明書が無効な状態です。証明書の設定を確認してください。"
+        runbook_url: "https://github.com/your-org/k8s-deployment-hpa-validator/blob/main/docs/runbook.md#certificate-invalid"
+
+    # 証明書再読み込みエラーアラート
+    - alert: WebhookCertificateReloadErrors
+      expr: rate(webhook_certificate_reloads_total{status="error"}[5m]) > 0
+      for: 2m
+      labels:
+        severity: warning
+        component: certificate
+      annotations:
+        summary: "Webhook証明書の再読み込みエラーが発生しています"
+        description: "証明書の再読み込みでエラーが{{ $value }}回/秒の頻度で発生しています。"
+        runbook_url: "https://github.com/your-org/k8s-deployment-hpa-validator/blob/main/docs/runbook.md#certificate-reload-errors"
+
+    # 証明書監視エラーアラート
+    - alert: WebhookCertificateMonitoringErrors
+      expr: rate(webhook_certificate_monitoring_errors_total[5m]) > 0
+      for: 5m
+      labels:
+        severity: warning
+        component: certificate
+      annotations:
+        summary: "Webhook証明書監視でエラーが発生しています"
+        description: "証明書監視でエラーが{{ $value }}回/秒の頻度で発生しています。"
+        runbook_url: "https://github.com/your-org/k8s-deployment-hpa-validator/blob/main/docs/runbook.md#certificate-monitoring-errors"
+
+    # バリデーションエラー急増アラート
+    - alert: WebhookValidationErrorsSpike
+      expr: |
+        rate(webhook_validation_errors_total[5m]) > 10
+      for: 2m
+      labels:
+        severity: warning
+        component: validation
+      annotations:
+        summary: "High rate of validation errors"
+        description: "Validation errors are occurring at {{ $value }} errors/second over the last 5 minutes."
+        runbook_url: "https://github.com/your-org/k8s-deployment-hpa-validator/blob/main/docs/runbook.md#validation-errors-spike"
+
+    # Kubernetes API接続エラーアラート
+    - alert: WebhookKubernetesAPIErrors
+      expr: |
+        rate(webhook_kubernetes_api_requests_total{status!="success"}[5m]) > 1
+      for: 3m
+      labels:
+        severity: warning
+        component: kubernetes-api
+      annotations:
+        summary: "High rate of Kubernetes API errors"
+        description: "Kubernetes API errors are occurring at {{ $value }} errors/second over the last 5 minutes."
+        runbook_url: "https://github.com/your-org/k8s-deployment-hpa-validator/blob/main/docs/runbook.md#kubernetes-api-errors"
+
+    # リクエスト量急増アラート
+    - alert: WebhookHighRequestVolume
+      expr: |
+        rate(webhook_requests_total[5m]) > 100
+      for: 5m
+      labels:
+        severity: info
+        component: webhook
+      annotations:
+        summary: "High volume of webhook requests"
+        description: "Webhook is receiving {{ $value }} requests/second over the last 5 minutes."
+        runbook_url: "https://github.com/your-org/k8s-deployment-hpa-validator/blob/main/docs/runbook.md#high-request-volume"
+
+  - name: webhook.recording
+    interval: 30s
+    rules:
+    # 成功率の記録ルール
+    - record: webhook:success_rate
+      expr: |
+        rate(webhook_requests_total{status="success"}[5m]) /
+        rate(webhook_requests_total[5m])
+
+    # 平均レスポンス時間の記録ルール
+    - record: webhook:avg_response_time
+      expr: |
+        rate(webhook_request_duration_seconds_sum[5m]) /
+        rate(webhook_request_duration_seconds_count[5m])
+
+    # リソースタイプ別リクエスト率の記録ルール
+    - record: webhook:request_rate_by_resource
+      expr: |
+        rate(webhook_requests_total[5m])
+      labels:
+        resource_type: "{{ $labels.resource_type }}"

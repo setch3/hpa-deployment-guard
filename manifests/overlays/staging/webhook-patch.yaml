@@ -1,0 +1,22 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: k8s-deployment-hpa-validator
+webhooks:
+- name: deployment.validator.k8s-deployment-hpa-validator.io
+  # ステージング環境では失敗時に拒否
+  failurePolicy: Fail
+  # タイムアウトを本番に近い値に設定
+  timeoutSeconds: 15
+  # ステージング環境用の名前空間フィルタリング
+  namespaceSelector:
+    matchExpressions:
+    - key: name
+      operator: NotIn
+      values: ["kube-system", "kube-public", "kube-node-lease", "cert-manager", "monitoring"]
+  # ステージング環境用のオブジェクトセレクター
+  objectSelector:
+    matchExpressions:
+    - key: staging.io/skip-validation
+      operator: NotIn
+      values: ["true"]

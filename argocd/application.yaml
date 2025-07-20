@@ -1,0 +1,54 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: k8s-deployment-hpa-validator
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: k8s-deployment-hpa-validator
+    app.kubernetes.io/component: webhook
+    app.kubernetes.io/part-of: admission-control
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/k8s-deployment-hpa-validator.git
+    targetRevision: HEAD
+    path: manifests/overlays/production
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: webhook-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+      - ApplyOutOfSyncOnly=true
+      - RespectIgnoreDifferences=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+  revisionHistoryLimit: 10
+  info:
+    - name: 'Description'
+      value: 'Kubernetes validating admission webhook for HPA/Deployment validation'
+    - name: 'Environment'
+      value: 'Production'
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+    - group: ""
+      kind: Secret
+      jsonPointers:
+        - /data

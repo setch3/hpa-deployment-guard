@@ -560,8 +560,8 @@ func TestValidateResource(t *testing.T) {
 			resource:     "invalid-resource",
 			expectedResult: ValidationResult{
 				Allowed: false,
-				Message: ErrSystemFailure + ": invalid deployment resource",
-				Code:    400,
+				Message: "無効なDeploymentリソースです",
+				Code:    500,
 			},
 		},
 	}

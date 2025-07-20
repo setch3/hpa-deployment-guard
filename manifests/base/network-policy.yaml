@@ -1,0 +1,68 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: k8s-deployment-hpa-validator-network-policy
+  labels:
+    component: security
+spec:
+  podSelector:
+    matchLabels:
+      app: k8s-deployment-hpa-validator
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Kubernetes API Serverからのwebhookリクエストを許可
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: kube-system
+    ports:
+    - protocol: TCP
+      port: 8443
+  # Prometheusからのメトリクス収集を許可
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    - podSelector:
+        matchLabels:
+          app: prometheus
+    ports:
+    - protocol: TCP
+      port: 8080
+  # 同一名前空間内のPod間通信を許可（ヘルスチェック等）
+  - from:
+    - podSelector: {}
+    ports:
+    - protocol: TCP
+      port: 8443
+    - protocol: TCP
+      port: 8080
+  egress:
+  # Kubernetes API Serverへの接続を許可
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+  # DNS解決を許可
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: kube-system
+    - podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - protocol: TCP
+      port: 53
+    - protocol: UDP
+      port: 53
+  # cert-managerとの通信を許可（証明書更新用）
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: cert-manager
+    ports:
+    - protocol: TCP
+      port: 443

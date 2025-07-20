@@ -1,0 +1,103 @@
+# ServiceAccount for k8s-deployment-hpa-validator
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: k8s-deployment-hpa-validator
+  labels:
+    version: v1.0.0
+    component: rbac
+automountServiceAccountToken: true
+---
+# ClusterRole for reading Deployments and HPAs
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: k8s-deployment-hpa-validator
+  labels:
+    version: v1.0.0
+    component: rbac
+rules:
+# Deployments読み取り権限
+- apiGroups: ["apps"]
+  resources: ["deployments"]
+  verbs: ["get", "list", "watch"]
+
+# HPA読み取り権限
+- apiGroups: ["autoscaling"]
+  resources: ["horizontalpodautoscalers"]
+  verbs: ["get", "list", "watch"]
+
+# Admission Review処理に必要な権限
+- apiGroups: ["admissionregistration.k8s.io"]
+  resources: ["validatingwebhookconfigurations"]
+  verbs: ["get", "list"]
+
+# イベント作成権限（ログ記録用）
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create", "patch"]
+
+# ヘルスチェック用のAPI server接続確認
+- apiGroups: [""]
+  resources: [""]
+  verbs: ["get"]
+---
+# ClusterRoleBinding to bind the ClusterRole to ServiceAccount
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: k8s-deployment-hpa-validator
+  labels:
+    version: v1.0.0
+    component: rbac
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: k8s-deployment-hpa-validator
+subjects:
+- kind: ServiceAccount
+  name: k8s-deployment-hpa-validator
+  namespace: webhook-system
+---
+# Role for namespace-specific operations
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: k8s-deployment-hpa-validator
+  labels:
+    version: v1.0.0
+    component: rbac
+rules:
+# Secret読み取り権限（証明書用）
+- apiGroups: [""]
+  resources: ["secrets"]
+  resourceNames: ["webhook-tls"]
+  verbs: ["get"]
+
+# ConfigMap読み取り権限
+- apiGroups: [""]
+  resources: ["configmaps"]
+  resourceNames: ["webhook-config"]
+  verbs: ["get"]
+
+# Pod情報取得権限（自己診断用）
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list"]
+---
+# RoleBinding for namespace-specific permissions
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: k8s-deployment-hpa-validator
+  labels:
+    version: v1.0.0
+    component: rbac
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: k8s-deployment-hpa-validator
+subjects:
+- kind: ServiceAccount
+  name: k8s-deployment-hpa-validator
+  namespace: webhook-system

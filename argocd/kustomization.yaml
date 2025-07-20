@@ -1,0 +1,44 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: argocd-applications
+  annotations:
+    config.kubernetes.io/local-config: "true"
+
+resources:
+  - project.yaml
+  - application.yaml
+  - application-development.yaml
+  - application-staging.yaml
+
+commonLabels:
+  app.kubernetes.io/managed-by: kustomize
+  app.kubernetes.io/part-of: webhook-system
+
+# 環境変数の置換設定
+replacements:
+  - source:
+      kind: ConfigMap
+      name: argocd-config
+      fieldPath: data.repository.url
+    targets:
+      - select:
+          kind: Application
+        fieldPaths:
+          - spec.source.repoURL
+        options:
+          create: true
+
+# パッチ設定（必要に応じて環境固有の設定を上書き）
+patchesStrategicMerge:
+  - |-
+    apiVersion: argoproj.io/v1alpha1
+    kind: Application
+    metadata:
+      name: k8s-deployment-hpa-validator
+    spec:
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true

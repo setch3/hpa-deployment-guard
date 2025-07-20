@@ -1,0 +1,25 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: k8s-deployment-hpa-validator
+webhooks:
+- name: deployment.validator.k8s-deployment-hpa-validator.io
+  # 本番環境では失敗時に拒否
+  failurePolicy: Fail
+  # 本番環境用のタイムアウト設定
+  timeoutSeconds: 30
+  # 本番環境用の名前空間フィルタリング（より厳格）
+  namespaceSelector:
+    matchExpressions:
+    - key: name
+      operator: NotIn
+      values: ["kube-system", "kube-public", "kube-node-lease", "monitoring", "istio-system", "cert-manager"]
+  # 本番環境用のオブジェクトセレクター
+  objectSelector:
+    matchExpressions:
+    - key: production.io/skip-validation
+      operator: NotIn
+      values: ["true"]
+    - key: app.kubernetes.io/managed-by
+      operator: NotIn
+      values: ["system"]

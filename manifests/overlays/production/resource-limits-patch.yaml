@@ -1,0 +1,116 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: k8s-deployment-hpa-validator
+spec:
+  # 本番環境では3レプリカで高可用性を確保
+  replicas: 3
+  template:
+    spec:
+      containers:
+      - name: webhook
+        # 本番環境用のリソース制限（パフォーマンスと安定性を重視）
+        resources:
+          limits:
+            cpu: 1000m      # 1 CPU core
+            memory: 512Mi   # 512MB RAM
+            ephemeral-storage: 1Gi
+          requests:
+            cpu: 200m       # 200m CPU（最低保証）
+            memory: 256Mi   # 256MB RAM（最低保証）
+            ephemeral-storage: 100Mi
+        # 本番環境用の環境変数（リソース最適化）
+        env:
+        - name: GOMAXPROCS
+          valueFrom:
+            resourceFieldRef:
+              resource: limits.cpu
+              divisor: "1"
+        - name: GOMEMLIMIT
+          valueFrom:
+            resourceFieldRef:
+              resource: limits.memory
+              divisor: "1"
+        # 本番環境用のプローブ設定（より厳格）
+        livenessProbe:
+          httpGet:
+            path: /livez
+            port: webhook
+            scheme: HTTPS
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+          successThreshold: 1
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: webhook
+            scheme: HTTPS
+          initialDelaySeconds: 15
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+          successThreshold: 1
+        # スタートアッププローブ（本番環境での起動時間を考慮）
+        startupProbe:
+          httpGet:
+            path: /readyz
+            port: webhook
+            scheme: HTTPS
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 30
+          successThreshold: 1
+      # 本番環境用のアフィニティ設定（高可用性とパフォーマンス）
+      affinity:
+        # Pod間のアンチアフィニティ（必須）
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                app: k8s-deployment-hpa-validator
+            topologyKey: kubernetes.io/hostname
+          # ゾーン間での分散（推奨）
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app: k8s-deployment-hpa-validator
+              topologyKey: topology.kubernetes.io/zone
+        # ノードアフィニティ（ワーカーノード優先）
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            preference:
+              matchExpressions:
+              - key: node-role.kubernetes.io/worker
+                operator: Exists
+          - weight: 50
+            preference:
+              matchExpressions:
+              - key: node.kubernetes.io/instance-type
+                operator: In
+                values: ["m5.large", "m5.xlarge", "c5.large", "c5.xlarge"]
+      # 本番環境用のtoleration（制御プレーンノードでの実行を許可）
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+        effect: NoSchedule
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
+      # 高負荷時の優先度設定
+      priorityClassName: system-cluster-critical
+      # 本番環境用のDNS設定
+      dnsPolicy: ClusterFirst
+      dnsConfig:
+        options:
+        - name: ndots
+          value: "2"
+        - name: edns0
+      # 本番環境用のリソース管理
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30

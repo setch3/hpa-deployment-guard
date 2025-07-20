@@ -1,0 +1,64 @@
+# Production environment overlay
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: k8s-deployment-hpa-validator-production
+
+# ベース設定を参照
+resources:
+  - ../../base
+
+# 本番環境固有のラベル
+labels:
+  - pairs:
+      environment: production
+
+# 本番環境固有のアノテーション
+commonAnnotations:
+  app.kubernetes.io/version: production
+
+# 名前空間を本番環境用に変更
+namespace: webhook-system
+
+# イメージ設定（本番環境用）
+images:
+  - name: hpa-validator
+    newTag: v1.0.0
+
+# ConfigMapの上書き（本番環境用設定）
+configMapGenerator:
+  - name: webhook-config
+    behavior: replace
+    literals:
+      - webhook.port=8443
+      - webhook.timeout=30s
+      - webhook.failure-policy=Fail
+      - log.level=warn
+      - log.format=json
+      - metrics.enabled=true
+      - metrics.port=8080
+      - health.enabled=true
+      - environment=production
+      - cluster.name=production-cluster
+      - validation.skip-namespaces=kube-system,kube-public,kube-node-lease,monitoring,istio-system
+      - validation.skip-labels=production.io/skip-validation=true
+    options:
+      disableNameSuffixHash: true
+
+# パッチファイル
+patchesStrategicMerge:
+  - deployment-patch.yaml
+  - webhook-patch.yaml
+  - security-patch.yaml
+  - resource-limits-patch.yaml
+  - certificate-patch.yaml
+
+# JSON6902パッチ
+patchesJson6902:
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: k8s-deployment-hpa-validator
+    path: replica-patch.yaml

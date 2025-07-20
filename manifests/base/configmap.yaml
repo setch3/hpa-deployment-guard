@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: webhook-config
+  labels:
+    component: config
+data:
+  # Webhook設定
+  webhook.port: "8443"
+  webhook.timeout: "10s"
+  webhook.failure-policy: "Fail"
+  
+  # TLS設定
+  webhook.tls-cert-file: "/etc/certs/tls.crt"
+  webhook.tls-key-file: "/etc/certs/tls.key"
+  
+  # ログ設定
+  log.level: "info"
+  log.format: "json"
+  
+  # バリデーション設定
+  validation.skip-namespaces: "kube-system,kube-public,kube-node-lease"
+  validation.skip-labels: "k8s-deployment-hpa-validator.io/skip-validation=true"
+  
+  # 監視設定
+  metrics.enabled: "true"
+  metrics.port: "8080"
+  health.enabled: "true"
+  
+  # 環境情報
+  environment: "base"
+  cluster.name: "default-cluster"

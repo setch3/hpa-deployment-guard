@@ -1,0 +1,24 @@
+# 開発環境用のPodDisruptionBudget（緩い設定）
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: k8s-deployment-hpa-validator-pdb
+spec:
+  # 開発環境では1つのPodが利用可能であれば十分
+  minAvailable: 1
+---
+# 開発環境ではHPAを無効化（リソース節約）
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: k8s-deployment-hpa-validator-hpa
+spec:
+  minReplicas: 1
+  maxReplicas: 2
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 80

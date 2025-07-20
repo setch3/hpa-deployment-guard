@@ -1,0 +1,96 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: webhook-system
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: webhook-system
+    app.kubernetes.io/component: argocd-project
+spec:
+  description: "Project for k8s-deployment-hpa-validator webhook system"
+  
+  # ソースリポジトリの制限
+  sourceRepos:
+    - 'https://github.com/your-org/k8s-deployment-hpa-validator.git'
+    - 'https://github.com/your-org/k8s-deployment-hpa-validator'
+  
+  # デプロイ先クラスターとネームスペースの制限
+  destinations:
+    - namespace: webhook-system
+      server: https://kubernetes.default.svc
+    - namespace: webhook-system-dev
+      server: https://kubernetes.default.svc
+    - namespace: webhook-system-staging
+      server: https://kubernetes.default.svc
+  
+  # 許可するKubernetesリソースの制限
+  clusterResourceWhitelist:
+    - group: 'admissionregistration.k8s.io'
+      kind: ValidatingAdmissionWebhook
+    - group: 'admissionregistration.k8s.io'
+      kind: ValidatingWebhookConfiguration
+    - group: 'rbac.authorization.k8s.io'
+      kind: ClusterRole
+    - group: 'rbac.authorization.k8s.io'
+      kind: ClusterRoleBinding
+    - group: 'cert-manager.io'
+      kind: Certificate
+    - group: 'cert-manager.io'
+      kind: Issuer
+    - group: 'cert-manager.io'
+      kind: ClusterIssuer
+  
+  namespaceResourceWhitelist:
+    - group: ''
+      kind: Service
+    - group: ''
+      kind: ServiceAccount
+    - group: ''
+      kind: ConfigMap
+    - group: ''
+      kind: Secret
+    - group: 'apps'
+      kind: Deployment
+    - group: 'networking.k8s.io'
+      kind: NetworkPolicy
+    - group: 'policy'
+      kind: PodDisruptionBudget
+    - group: 'policy'
+      kind: PodSecurityPolicy
+    - group: 'monitoring.coreos.com'
+      kind: ServiceMonitor
+  
+  # RBAC設定
+  roles:
+    - name: webhook-admin
+      description: "Full access to webhook applications"
+      policies:
+        - p, proj:webhook-system:webhook-admin, applications, *, webhook-system/*, allow
+        - p, proj:webhook-system:webhook-admin, repositories, *, *, allow
+      groups:
+        - webhook-admins
+    
+    - name: webhook-developer
+      description: "Developer access to webhook applications"
+      policies:
+        - p, proj:webhook-system:webhook-developer, applications, get, webhook-system/*, allow
+        - p, proj:webhook-system:webhook-developer, applications, sync, webhook-system/*-dev, allow
+        - p, proj:webhook-system:webhook-developer, applications, sync, webhook-system/*-staging, allow
+      groups:
+        - webhook-developers
+  
+  # 同期ウィンドウ（メンテナンス時間の設定）
+  syncWindows:
+    - kind: allow
+      schedule: '0 2 * * *'  # 毎日午前2時
+      duration: 2h
+      applications:
+        - '*-dev'
+        - '*-staging'
+      manualSync: true
+    - kind: deny
+      schedule: '0 9-17 * * 1-5'  # 平日の営業時間
+      duration: 8h
+      applications:
+        - 'k8s-deployment-hpa-validator'  # 本番環境
+      manualSync: false

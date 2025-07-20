@@ -1,0 +1,121 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-cm
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: argocd-cm
+    app.kubernetes.io/part-of: argocd
+data:
+  # カスタムヘルスチェック設定
+  resource.customizations.health.apps_Deployment: |
+    hs = {}
+    if obj.metadata.labels and obj.metadata.labels["app"] == "k8s-deployment-hpa-validator" then
+      -- webhook固有のヘルスチェックロジック
+      if obj.status ~= nil then
+        if obj.status.readyReplicas ~= nil and obj.status.readyReplicas > 0 then
+          if obj.status.readyReplicas == obj.status.replicas then
+            hs.status = "Healthy"
+            hs.message = "All webhook replicas are ready"
+          else
+            hs.status = "Progressing"
+            hs.message = string.format("Webhook replicas: %d/%d ready", obj.status.readyReplicas or 0, obj.status.replicas or 0)
+          end
+        else
+          hs.status = "Degraded"
+          hs.message = "No webhook replicas are ready"
+        end
+      else
+        hs.status = "Progressing"
+        hs.message = "Webhook deployment status unknown"
+      end
+    else
+      -- 通常のDeploymentヘルスチェック
+      if obj.status ~= nil then
+        if obj.status.readyReplicas ~= nil and obj.status.readyReplicas > 0 then
+          hs.status = "Healthy"
+        else
+          hs.status = "Degraded"
+        end
+      end
+    end
+    return hs
+
+  # ValidatingWebhookConfigurationのカスタムヘルスチェック
+  resource.customizations.health.admissionregistration.k8s.io_ValidatingWebhookConfiguration: |
+    hs = {}
+    if obj.metadata.name == "k8s-deployment-hpa-validator" then
+      -- webhook設定の健康状態をチェック
+      if obj.webhooks ~= nil and #obj.webhooks > 0 then
+        local webhook = obj.webhooks[1]
+        if webhook.clientConfig ~= nil and webhook.clientConfig.service ~= nil then
+          hs.status = "Healthy"
+          hs.message = "Webhook configuration is valid"
+        else
+          hs.status = "Degraded"
+          hs.message = "Webhook configuration is invalid"
+        end
+      else
+        hs.status = "Degraded"
+        hs.message = "No webhooks configured"
+      end
+    else
+      hs.status = "Healthy"
+    end
+    return hs
+
+  # Serviceのカスタムヘルスチェック
+  resource.customizations.health.v1_Service: |
+    hs = {}
+    if obj.metadata.labels and obj.metadata.labels["app"] == "k8s-deployment-hpa-validator" then
+      -- webhook service固有のチェック
+      if obj.spec.ports ~= nil and #obj.spec.ports > 0 then
+        local hasWebhookPort = false
+        for i, port in ipairs(obj.spec.ports) do
+          if port.port == 8443 or port.name == "webhook" then
+            hasWebhookPort = true
+            break
+          end
+        end
+        if hasWebhookPort then
+          hs.status = "Healthy"
+          hs.message = "Webhook service is properly configured"
+        else
+          hs.status = "Degraded"
+          hs.message = "Webhook port not found in service"
+        end
+      else
+        hs.status = "Degraded"
+        hs.message = "No ports configured in webhook service"
+      end
+    else
+      hs.status = "Healthy"
+    end
+    return hs
+
+  # 証明書のヘルスチェック（Secret）
+  resource.customizations.health.v1_Secret: |
+    hs = {}
+    if obj.type == "kubernetes.io/tls" and obj.metadata.labels and obj.metadata.labels["app"] == "k8s-deployment-hpa-validator" then
+      -- TLS証明書の健康状態をチェック
+      if obj.data ~= nil and obj.data["tls.crt"] ~= nil and obj.data["tls.key"] ~= nil then
+        hs.status = "Healthy"
+        hs.message = "TLS certificate is present"
+      else
+        hs.status = "Degraded"
+        hs.message = "TLS certificate data is missing"
+      end
+    else
+      hs.status = "Healthy"
+    end
+    return hs
+
+  # アプリケーション固有の設定
+  application.instanceLabelKey: argocd.argoproj.io/instance
+  
+  # 同期オプション
+  application.resourceTrackingMethod: annotation
+  
+  # タイムアウト設定
+  timeout.hard.reconciliation: 5m
+  timeout.reconciliation: 180s

@@ -2,7 +2,6 @@ package validator
 
 import (
 	"context"
-	"fmt"
 
 	admissionv1 "k8s.io/api/admission/v1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -31,10 +30,14 @@ func (v *DeploymentHPAValidator) ValidateDeployment(ctx context.Context, deploym
 		// Search for HPAs that target this deployment
 		hpa, err := v.findHPAForDeployment(ctx, deployment)
 		if err != nil {
-			return fmt.Errorf("%s: %v", ErrSystemFailure, err)
+			return NewKubernetesAPIError("HPA検索", err).WithContext(
+				"", "Deployment", deployment.Name, deployment.Namespace,
+			)
 		}
 		if hpa != nil {
-			return fmt.Errorf(ErrDeploymentWithHPA)
+			return NewDeploymentHPAConflictError().WithContext(
+				"", "Deployment", deployment.Name, deployment.Namespace,
+			)
 		}
 	}
 	return nil
@@ -50,12 +53,16 @@ func (v *DeploymentHPAValidator) ValidateHPA(ctx context.Context, hpa *autoscali
 	// Get the target deployment
 	deployment, err := v.getTargetDeployment(ctx, hpa)
 	if err != nil {
-		return fmt.Errorf("%s: %v", ErrSystemFailure, err)
+		return NewKubernetesAPIError("Deployment取得", err).WithContext(
+			"", "HorizontalPodAutoscaler", hpa.Name, hpa.Namespace,
+		)
 	}
 
 	// Check if target deployment has 1 replica
 	if deployment != nil && deployment.Spec.Replicas != nil && *deployment.Spec.Replicas == 1 {
-		return fmt.Errorf(ErrHPAWithSingleReplica)
+		return NewHPASingleReplicaError().WithContext(
+			"", "HorizontalPodAutoscaler", hpa.Name, hpa.Namespace,
+		)
 	}
 
 	return nil
@@ -90,6 +97,15 @@ func (v *DeploymentHPAValidator) getTargetDeployment(ctx context.Context, hpa *a
 // CreateValidationResult creates a ValidationResult based on error
 func CreateValidationResult(err error) ValidationResult {
 	if err != nil {
+		// WebhookErrorの場合は適切なHTTPステータスコードを使用
+		if webhookErr, ok := err.(*WebhookError); ok {
+			return ValidationResult{
+				Allowed: false,
+				Message: webhookErr.Error(),
+				Code:    int32(webhookErr.GetHTTPStatusCode()),
+			}
+		}
+		// 通常のerrorの場合はデフォルトの400を使用
 		return ValidationResult{
 			Allowed: false,
 			Message: err.Error(),
@@ -129,13 +145,21 @@ func (v *DeploymentHPAValidator) ValidateResource(ctx context.Context, resourceT
 		if deployment, ok := resource.(*appsv1.Deployment); ok {
 			err = v.ValidateDeployment(ctx, deployment)
 		} else {
-			err = fmt.Errorf(ErrSystemFailure + ": invalid deployment resource")
+			err = NewWebhookError(
+				ErrorTypeInternal,
+				CodeInvalidResource,
+				"無効なDeploymentリソースです",
+			)
 		}
 	case "HorizontalPodAutoscaler":
 		if hpa, ok := resource.(*autoscalingv2.HorizontalPodAutoscaler); ok {
 			err = v.ValidateHPA(ctx, hpa)
 		} else {
-			err = fmt.Errorf(ErrSystemFailure + ": invalid HPA resource")
+			err = NewWebhookError(
+				ErrorTypeInternal,
+				CodeInvalidResource,
+				"無効なHPAリソースです",
+			)
 		}
 	default:
 		// For unsupported resource types, allow by default
