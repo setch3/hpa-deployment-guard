@@ -40,7 +40,7 @@ Webhookのコードを初学者にもわかりやすく解説しています。�
 - [デプロイガイド - パート5](deployment-guide-part5.md) - デプロイ後の確認、トラブルシューティング
 
 ### リソース分類
-- [リソース分類 - パート1](resource-classification.md) - 本番環境で使用されるリソース
+- [リソース分類 - パート1](resource-classification-part1.md) - 本番環境で使用されるリソース
 - [リソース分類 - パート2](resource-classification-part2.md) - テスト用リソース、区分けの基準
 
 ## クイックスタート
