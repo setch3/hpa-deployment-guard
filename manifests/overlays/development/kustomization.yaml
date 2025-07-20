@@ -1,0 +1,62 @@
+# Development environment overlay
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: k8s-deployment-hpa-validator-development
+
+# ベース設定を参照
+resources:
+  - ../../base
+
+# 開発環境固有のラベル
+labels:
+  - pairs:
+      environment: development
+
+# 開発環境固有のアノテーション
+commonAnnotations:
+  app.kubernetes.io/version: development
+
+# 名前空間を開発環境用に変更
+namespace: webhook-system-dev
+
+# イメージ設定（開発環境用）
+images:
+  - name: hpa-validator
+    newTag: dev-latest
+
+# ConfigMapの上書き（開発環境用設定）
+configMapGenerator:
+  - name: webhook-config
+    behavior: replace
+    literals:
+      - webhook.port=8443
+      - webhook.timeout=5s
+      - webhook.failure-policy=Ignore
+      - log.level=debug
+      - log.format=text
+      - metrics.enabled=true
+      - metrics.port=8080
+      - health.enabled=true
+      - environment=development
+      - cluster.name=development-cluster
+      - validation.skip-namespaces=kube-system,kube-public,kube-node-lease,local-path-storage
+      - validation.skip-labels=development.io/skip-validation=true
+    options:
+      disableNameSuffixHash: true
+
+# パッチファイル
+patchesStrategicMerge:
+  - deployment-patch.yaml
+  - webhook-patch.yaml
+  - pdb-patch.yaml
+
+# JSON6902パッチ
+patchesJson6902:
+  - target:
+      group: apps
+      version: v1
+      kind: Deployment
+      name: k8s-deployment-hpa-validator
+    path: replica-patch.yaml

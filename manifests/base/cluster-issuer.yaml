@@ -1,0 +1,41 @@
+# cert-manager用のClusterIssuer設定例
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: webhook-ca-issuer
+spec:
+  # 自己署名証明書を使用する場合
+  selfSigned: {}
+---
+# Let's Encryptを使用する場合の設定例（本番環境用）
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: webhook-letsencrypt-issuer
+spec:
+  acme:
+    # Let's Encrypt本番環境のURL
+    server: https://acme-v02.api.letsencrypt.org/directory
+    
+    # 連絡先メールアドレス（実際の値に変更してください）
+    email: admin@example.com
+    
+    # アカウント秘密鍵を格納するSecret
+    privateKeySecretRef:
+      name: letsencrypt-private-key
+    
+    # HTTP-01チャレンジの設定
+    solvers:
+    - http01:
+        ingress:
+          class: nginx
+---
+# 内部CA証明書を使用する場合の設定例
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: webhook-internal-ca-issuer
+spec:
+  ca:
+    # CA証明書と秘密鍵を含むSecret
+    secretName: internal-ca-secret

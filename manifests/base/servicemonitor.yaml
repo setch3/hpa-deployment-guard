@@ -1,0 +1,43 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: k8s-deployment-hpa-validator-metrics
+  labels:
+    app: k8s-deployment-hpa-validator
+    component: metrics
+spec:
+  selector:
+    matchLabels:
+      app: k8s-deployment-hpa-validator
+      component: metrics
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics
+    scheme: http
+    scrapeTimeout: 10s
+    honorLabels: true
+    metricRelabelings:
+    - sourceLabels: [__name__]
+      regex: 'webhook_.*'
+      action: keep
+  namespaceSelector:
+    matchNames:
+    - webhook-system
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: k8s-deployment-hpa-validator-metrics
+  labels:
+    app: k8s-deployment-hpa-validator
+    component: metrics
+spec:
+  selector:
+    app: k8s-deployment-hpa-validator
+  ports:
+  - name: metrics
+    port: 8080
+    targetPort: 8080
+    protocol: TCP
+  type: ClusterIP

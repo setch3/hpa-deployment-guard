@@ -1,0 +1,50 @@
+# cert-manager統合用のCertificate CRD
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: webhook-tls
+  namespace: webhook-system
+spec:
+  # 証明書の秘密鍵を格納するSecret名
+  secretName: webhook-tls-secret
+  
+  # 証明書の発行者を指定
+  issuerRef:
+    name: webhook-ca-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+  
+  # 証明書の有効期限（90日）
+  duration: 2160h # 90日
+  
+  # 証明書の更新タイミング（有効期限の30日前）
+  renewBefore: 720h # 30日
+  
+  # 証明書のサブジェクト
+  subject:
+    organizations:
+      - k8s-deployment-hpa-validator
+    organizationalUnits:
+      - webhook-system
+  
+  # 証明書の用途
+  usages:
+    - digital signature
+    - key encipherment
+    - server auth
+  
+  # DNS名の設定
+  dnsNames:
+    - k8s-deployment-hpa-validator
+    - k8s-deployment-hpa-validator.webhook-system
+    - k8s-deployment-hpa-validator.webhook-system.svc
+    - k8s-deployment-hpa-validator.webhook-system.svc.cluster.local
+  
+  # 秘密鍵の設定
+  privateKey:
+    algorithm: RSA
+    size: 2048
+    rotationPolicy: Always
+  
+  # 証明書の自動更新設定
+  renewalPolicy: Always

@@ -1,0 +1,118 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: k8s-deployment-hpa-validator
+  labels:
+    version: v1.0.0
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: k8s-deployment-hpa-validator
+  template:
+    metadata:
+      labels:
+        version: v1.0.0
+    spec:
+      serviceAccountName: k8s-deployment-hpa-validator
+      containers:
+      - name: webhook
+        image: hpa-validator:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: webhook
+          containerPort: 8443
+          protocol: TCP
+        - name: metrics
+          containerPort: 8080
+          protocol: TCP
+        args:
+        - --port=8443
+        - --cert-file=/etc/certs/tls.crt
+        - --key-file=/etc/certs/tls.key
+        env:
+        - name: TLS_CERT_FILE
+          value: "/etc/certs/tls.crt"
+        - name: TLS_KEY_FILE
+          value: "/etc/certs/tls.key"
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: webhook-config
+              key: log.level
+        - name: LOG_FORMAT
+          valueFrom:
+            configMapKeyRef:
+              name: webhook-config
+              key: log.format
+        - name: WEBHOOK_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: webhook-config
+              key: webhook.port
+        - name: METRICS_ENABLED
+          valueFrom:
+            configMapKeyRef:
+              name: webhook-config
+              key: metrics.enabled
+        - name: METRICS_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: webhook-config
+              key: metrics.port
+        resources:
+          limits:
+            cpu: 200m
+            memory: 128Mi
+          requests:
+            cpu: 50m
+            memory: 64Mi
+        livenessProbe:
+          httpGet:
+            path: /livez
+            port: webhook
+            scheme: HTTPS
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: webhook
+            scheme: HTTPS
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 65534
+          runAsGroup: 65534
+        volumeMounts:
+        - name: certs
+          mountPath: /etc/certs
+          readOnly: true
+        - name: tmp
+          mountPath: /tmp
+      volumes:
+      - name: certs
+        secret:
+          secretName: webhook-tls
+          defaultMode: 0400
+      - name: tmp
+        emptyDir: {}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector:
+        kubernetes.io/os: linux

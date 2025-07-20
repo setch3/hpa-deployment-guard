@@ -1,63 +1,108 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: k8s-deployment-hpa-validator-config
-  namespace: default
+  name: webhook-config
+  namespace: webhook-system
   labels:
     app: k8s-deployment-hpa-validator
-    version: v1.0.0
     component: config
 data:
   # Webhook設定
-  webhook.yaml: |
-    server:
-      port: 8443
-      certFile: "/etc/certs/tls.crt"
-      keyFile: "/etc/certs/tls.key"
-      readTimeout: "30s"
-      writeTimeout: "30s"
-      idleTimeout: "60s"
-    
-    validation:
-      enabled: true
-      failurePolicy: "Fail"
-      timeoutSeconds: 10
-      
-    logging:
-      level: "info"
-      format: "json"
-      
-    metrics:
-      enabled: true
-      port: 8080
-      path: "/metrics"
-      
-    health:
-      livenessPath: "/livez"
-      readinessPath: "/readyz"
-      
-  # エラーメッセージ設定（日本語）
-  messages.yaml: |
-    errors:
-      deploymentWithHPA: "1 replicaのDeploymentにHPAが設定されています。HPAを削除するか、replicasを2以上に設定してください。"
-      hpaWithSingleReplica: "1 replicaのDeploymentを対象とするHPAは作成できません。Deploymentのreplicasを2以上に設定してください。"
-      systemFailure: "システムエラーが発生しました。管理者に連絡してください。"
-      
-    warnings:
-      certificateExpiringSoon: "証明書の有効期限が近づいています。更新を検討してください。"
-      
-  # 監視対象リソース設定
-  resources.yaml: |
-    watchedResources:
-      - apiVersion: "apps/v1"
-        kind: "Deployment"
-        namespaces: []  # 空の場合は全ネームスペース
-        
-      - apiVersion: "autoscaling/v2"
-        kind: "HorizontalPodAutoscaler"
-        namespaces: []  # 空の場合は全ネームスペース
-        
-    excludedNamespaces:
-      - "kube-system"
-      - "kube-public"
-      - "kube-node-lease"
+  webhook.port: "8443"
+  webhook.timeout: "30s"
+  webhook.failure-policy: "Fail"
+  
+  # TLS設定
+  webhook.tls-cert-file: "/etc/certs/tls.crt"
+  webhook.tls-key-file: "/etc/certs/tls.key"
+  
+  # ログ設定
+  log.level: "info"
+  log.format: "json"
+  
+  # バリデーション設定
+  validation.skip-namespaces: "monitoring,istio-system"
+  validation.skip-labels: "production.io/skip-validation=true"
+  
+  # 監視設定
+  metrics.enabled: "true"
+  metrics.port: "8080"
+  health.enabled: "true"
+  
+  # 環境情報
+  environment: "production"
+  cluster.name: "production-cluster"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: webhook-config-staging
+  namespace: webhook-system
+  labels:
+    app: k8s-deployment-hpa-validator
+    component: config
+    environment: staging
+data:
+  # Webhook設定
+  webhook.port: "8443"
+  webhook.timeout: "15s"
+  webhook.failure-policy: "Fail"
+  
+  # TLS設定
+  webhook.tls-cert-file: "/etc/certs/tls.crt"
+  webhook.tls-key-file: "/etc/certs/tls.key"
+  
+  # ログ設定
+  log.level: "info"
+  log.format: "json"
+  
+  # バリデーション設定
+  validation.skip-namespaces: "cert-manager,monitoring"
+  validation.skip-labels: "staging.io/skip-validation=true"
+  
+  # 監視設定
+  metrics.enabled: "true"
+  metrics.port: "8080"
+  health.enabled: "true"
+  
+  # 環境情報
+  environment: "staging"
+  cluster.name: "staging-cluster"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: webhook-config-development
+  namespace: webhook-system
+  labels:
+    app: k8s-deployment-hpa-validator
+    component: config
+    environment: development
+data:
+  # Webhook設定
+  webhook.port: "8443"
+  webhook.timeout: "10s"
+  webhook.failure-policy: "Ignore"
+  
+  # TLS設定
+  webhook.tls-cert-file: "/etc/certs/tls.crt"
+  webhook.tls-key-file: "/etc/certs/tls.key"
+  
+  # ログ設定
+  log.level: "debug"
+  log.format: "text"
+  
+  # バリデーション設定
+  validation.skip-namespaces: "local-path-storage"
+  validation.skip-labels: "development.io/skip-validation=true"
+  
+  # 監視設定
+  metrics.enabled: "true"
+  metrics.port: "8080"
+  health.enabled: "true"
+  
+  # 環境情報
+  environment: "development"
+  cluster.name: "development-cluster"

@@ -1,0 +1,186 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-notifications-cm
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: argocd-notifications
+    app.kubernetes.io/part-of: argocd
+data:
+  # サービス設定（Slack、メール等）
+  service.slack: |
+    token: $slack-token
+    username: ArgoCD
+    icon: ":argo:"
+  
+  service.email: |
+    host: smtp.gmail.com
+    port: 587
+    from: $email-username
+    username: $email-username
+    password: $email-password
+  
+  # テンプレート設定
+  template.app-deployed: |
+    email:
+      subject: "{{.app.metadata.name}} がデプロイされました"
+    message: |
+      アプリケーション {{.app.metadata.name}} が正常にデプロイされました。
+      
+      詳細:
+      - リビジョン: {{.app.status.sync.revision}}
+      - 同期状態: {{.app.status.sync.status}}
+      - ヘルス状態: {{.app.status.health.status}}
+      - 環境: {{.app.metadata.labels.environment}}
+      
+      ArgoCD URL: {{.context.argocdUrl}}/applications/{{.app.metadata.name}}
+    slack:
+      attachments: |
+        [{
+          "title": "{{.app.metadata.name}} デプロイ完了",
+          "title_link": "{{.context.argocdUrl}}/applications/{{.app.metadata.name}}",
+          "color": "good",
+          "fields": [
+            {
+              "title": "同期状態",
+              "value": "{{.app.status.sync.status}}",
+              "short": true
+            },
+            {
+              "title": "ヘルス状態", 
+              "value": "{{.app.status.health.status}}",
+              "short": true
+            },
+            {
+              "title": "リビジョン",
+              "value": "{{.app.status.sync.revision}}",
+              "short": true
+            },
+            {
+              "title": "環境",
+              "value": "{{.app.metadata.labels.environment}}",
+              "short": true
+            }
+          ]
+        }]
+
+  template.app-health-degraded: |
+    email:
+      subject: "{{.app.metadata.name}} のヘルス状態が悪化しました"
+    message: |
+      アプリケーション {{.app.metadata.name}} のヘルス状態が悪化しました。
+      
+      詳細:
+      - 現在のヘルス状態: {{.app.status.health.status}}
+      - メッセージ: {{.app.status.health.message}}
+      - 同期状態: {{.app.status.sync.status}}
+      - 環境: {{.app.metadata.labels.environment}}
+      
+      至急確認してください。
+      ArgoCD URL: {{.context.argocdUrl}}/applications/{{.app.metadata.name}}
+    slack:
+      attachments: |
+        [{
+          "title": "{{.app.metadata.name}} ヘルス状態悪化",
+          "title_link": "{{.context.argocdUrl}}/applications/{{.app.metadata.name}}",
+          "color": "danger",
+          "fields": [
+            {
+              "title": "ヘルス状態",
+              "value": "{{.app.status.health.status}}",
+              "short": true
+            },
+            {
+              "title": "メッセージ",
+              "value": "{{.app.status.health.message}}",
+              "short": false
+            },
+            {
+              "title": "環境",
+              "value": "{{.app.metadata.labels.environment}}",
+              "short": true
+            }
+          ]
+        }]
+
+  template.app-sync-failed: |
+    email:
+      subject: "{{.app.metadata.name}} の同期に失敗しました"
+    message: |
+      アプリケーション {{.app.metadata.name}} の同期に失敗しました。
+      
+      詳細:
+      - 同期状態: {{.app.status.sync.status}}
+      - エラーメッセージ: {{.app.status.operationState.message}}
+      - リビジョン: {{.app.status.sync.revision}}
+      - 環境: {{.app.metadata.labels.environment}}
+      
+      手動での確認と修正が必要です。
+      ArgoCD URL: {{.context.argocdUrl}}/applications/{{.app.metadata.name}}
+    slack:
+      attachments: |
+        [{
+          "title": "{{.app.metadata.name}} 同期失敗",
+          "title_link": "{{.context.argocdUrl}}/applications/{{.app.metadata.name}}",
+          "color": "warning",
+          "fields": [
+            {
+              "title": "同期状態",
+              "value": "{{.app.status.sync.status}}",
+              "short": true
+            },
+            {
+              "title": "エラー",
+              "value": "{{.app.status.operationState.message}}",
+              "short": false
+            },
+            {
+              "title": "環境",
+              "value": "{{.app.metadata.labels.environment}}",
+              "short": true
+            }
+          ]
+        }]
+
+  # トリガー設定
+  trigger.on-deployed: |
+    - description: アプリケーションが正常にデプロイされた時
+      send:
+      - app-deployed
+      when: app.status.operationState.phase in ['Succeeded'] and app.status.health.status == 'Healthy'
+
+  trigger.on-health-degraded: |
+    - description: アプリケーションのヘルス状態が悪化した時
+      send:
+      - app-health-degraded
+      when: app.status.health.status == 'Degraded'
+
+  trigger.on-sync-failed: |
+    - description: 同期に失敗した時
+      send:
+      - app-sync-failed
+      when: app.status.operationState.phase in ['Error', 'Failed']
+
+  trigger.on-sync-status-unknown: |
+    - description: 同期状態が不明になった時
+      send:
+      - app-sync-failed
+      when: app.status.sync.status == 'Unknown'
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: argocd-notifications-secret
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: argocd-notifications
+    app.kubernetes.io/part-of: argocd
+type: Opaque
+stringData:
+  # Slack設定（実際の値は環境変数や外部シークレット管理システムから設定）
+  slack-token: "xoxb-your-slack-bot-token"
+  
+  # メール設定
+  email-username: "your-email@example.com"
+  email-password: "your-app-password"

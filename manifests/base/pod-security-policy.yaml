@@ -1,0 +1,90 @@
+# PodSecurityPolicy（Kubernetes 1.25未満用）
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: k8s-deployment-hpa-validator-psp
+  labels:
+    component: security
+spec:
+  # 特権コンテナを禁止
+  privileged: false
+  # 特権昇格を禁止
+  allowPrivilegeEscalation: false
+  # ホストネットワークを禁止
+  hostNetwork: false
+  # ホストIPCを禁止
+  hostIPC: false
+  # ホストPIDを禁止
+  hostPID: false
+  # ルートファイルシステムを読み取り専用に設定
+  readOnlyRootFilesystem: true
+  # 非rootユーザーでの実行を強制
+  runAsUser:
+    rule: MustRunAsNonRoot
+  # グループIDの制限
+  runAsGroup:
+    rule: MustRunAs
+    ranges:
+    - min: 1000
+      max: 65535
+  # FSGroupの制限
+  fsGroup:
+    rule: MustRunAs
+    ranges:
+    - min: 1000
+      max: 65535
+  # 補助グループの制限
+  supplementalGroups:
+    rule: MustRunAs
+    ranges:
+    - min: 1000
+      max: 65535
+  # SELinuxの設定
+  seLinux:
+    rule: RunAsAny
+  # seccompプロファイルの設定
+  seccompProfiles:
+  - runtime/default
+  # 許可するボリュームタイプ
+  volumes:
+  - secret
+  - configMap
+  - emptyDir
+  - projected
+  - downwardAPI
+  # 許可するCapabilities（すべて削除）
+  requiredDropCapabilities:
+  - ALL
+  # 禁止するCapabilities
+  forbiddenSysctls:
+  - '*'
+---
+# PodSecurityPolicy用のClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: k8s-deployment-hpa-validator-psp
+  labels:
+    component: security
+rules:
+- apiGroups: ['policy']
+  resources: ['podsecuritypolicies']
+  verbs: ['use']
+  resourceNames:
+  - k8s-deployment-hpa-validator-psp
+---
+# PodSecurityPolicy用のRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: k8s-deployment-hpa-validator-psp
+  labels:
+    component: security
+roleRef:
+  kind: ClusterRole
+  name: k8s-deployment-hpa-validator-psp
+  apiGroup: rbac.authorization.k8s.io
+subjects:
+- kind: ServiceAccount
+  name: k8s-deployment-hpa-validator
+  namespace: webhook-system

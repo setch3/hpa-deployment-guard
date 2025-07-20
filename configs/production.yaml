@@ -1,0 +1,36 @@
+# 本番環境設定
+environment: production
+
+# サーバー設定
+port: 8443
+timeout: 30s
+
+# TLS設定
+tls_cert_file: "/etc/certs/tls.crt"
+tls_key_file: "/etc/certs/tls.key"
+
+# ログ設定
+log_level: warn
+log_format: json
+
+# バリデーション設定
+skip_namespaces:
+  - kube-system
+  - kube-public
+  - kube-node-lease
+  - cert-manager
+  - monitoring
+  - istio-system
+skip_labels:
+  - "k8s-deployment-hpa-validator.io/skip-validation=true"
+
+# 監視設定
+metrics_enabled: true
+metrics_port: 8080
+health_enabled: true
+
+# 失敗ポリシー（本番環境では厳格に）
+failure_policy: Fail
+
+# クラスター情報
+cluster_name: "production-cluster"

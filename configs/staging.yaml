@@ -1,0 +1,36 @@
+# ステージング環境設定
+environment: staging
+
+# サーバー設定
+port: 8443
+timeout: 15s
+
+# TLS設定
+tls_cert_file: "/etc/certs/tls.crt"
+tls_key_file: "/etc/certs/tls.key"
+
+# ログ設定
+log_level: info
+log_format: json
+
+# バリデーション設定
+skip_namespaces:
+  - kube-system
+  - kube-public
+  - kube-node-lease
+  - cert-manager
+  - monitoring
+skip_labels:
+  - "k8s-deployment-hpa-validator.io/skip-validation=true"
+  - "staging.io/skip-validation=true"
+
+# 監視設定
+metrics_enabled: true
+metrics_port: 8080
+health_enabled: true
+
+# 失敗ポリシー（ステージング環境では厳格に）
+failure_policy: Fail
+
+# クラスター情報
+cluster_name: "staging-cluster"

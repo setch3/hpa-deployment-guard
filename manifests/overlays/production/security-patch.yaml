@@ -1,0 +1,94 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: k8s-deployment-hpa-validator-network-policy
+spec:
+  # 本番環境ではより厳格なネットワークポリシーを適用
+  ingress:
+  # Kubernetes API Serverからのwebhookリクエストのみ許可
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: kube-system
+    ports:
+    - protocol: TCP
+      port: 8443
+  # Prometheusからのメトリクス収集を許可（本番監視用）
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: prometheus
+    ports:
+    - protocol: TCP
+      port: 8080
+  egress:
+  # Kubernetes API Serverへの接続のみ許可
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+  # DNS解決を許可
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: kube-system
+    ports:
+    - protocol: TCP
+      port: 53
+    - protocol: UDP
+      port: 53
+---
+# 本番環境用のPodDisruptionBudget
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: k8s-deployment-hpa-validator-pdb
+  labels:
+    component: security
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: k8s-deployment-hpa-validator
+---
+# 本番環境用のSecurityContext強化
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: k8s-deployment-hpa-validator
+spec:
+  template:
+    spec:
+      # Pod レベルのセキュリティコンテキスト強化
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        fsGroupChangePolicy: "OnRootMismatch"
+        seccompProfile:
+          type: RuntimeDefault
+        sysctls: []
+      containers:
+      - name: webhook
+        # コンテナレベルのセキュリティコンテキスト強化
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 65534
+          runAsGroup: 65534
+          seccompProfile:
+            type: RuntimeDefault
+        # 本番環境用の追加環境変数
+        env:
+        - name: SECURITY_MODE
+          value: "strict"
+        - name: AUDIT_LOG_ENABLED
+          value: "true"

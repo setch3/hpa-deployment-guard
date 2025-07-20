@@ -1,0 +1,20 @@
+# namespace内でのみ使用するIssuer設定例
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: webhook-issuer
+  namespace: webhook-system
+spec:
+  # 自己署名証明書を使用する場合
+  selfSigned: {}
+---
+# 内部CA証明書を使用するIssuer
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: webhook-ca-issuer
+  namespace: webhook-system
+spec:
+  ca:
+    # CA証明書と秘密鍵を含むSecret（同じnamespace内）
+    secretName: ca-secret

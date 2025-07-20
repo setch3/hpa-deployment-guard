@@ -1,0 +1,34 @@
+# 開発環境設定
+environment: development
+
+# サーバー設定
+port: 8443
+timeout: 10s
+
+# TLS設定
+tls_cert_file: "/etc/certs/tls.crt"
+tls_key_file: "/etc/certs/tls.key"
+
+# ログ設定
+log_level: debug
+log_format: text
+
+# バリデーション設定
+skip_namespaces:
+  - kube-system
+  - kube-public
+  - kube-node-lease
+  - local-path-storage
+skip_labels:
+  - "k8s-deployment-hpa-validator.io/skip-validation=true"
+
+# 監視設定
+metrics_enabled: true
+metrics_port: 8080
+health_enabled: true
+
+# 失敗ポリシー（開発環境では警告のみ）
+failure_policy: Ignore
+
+# クラスター情報
+cluster_name: "development-cluster"

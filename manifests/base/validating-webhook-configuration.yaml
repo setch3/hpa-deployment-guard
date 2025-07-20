@@ -1,0 +1,40 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: k8s-deployment-hpa-validator
+  labels:
+    version: v1.0.0
+webhooks:
+- name: deployment.validator.k8s-deployment-hpa-validator.io
+  clientConfig:
+    service:
+      name: k8s-deployment-hpa-validator
+      namespace: webhook-system
+      path: "/validate"
+    # CA証明書は環境別に設定される
+    caBundle: ""
+  rules:
+  - operations: ["CREATE", "UPDATE"]
+    apiGroups: ["apps"]
+    apiVersions: ["v1"]
+    resources: ["deployments"]
+  - operations: ["CREATE", "UPDATE"]
+    apiGroups: ["autoscaling"]
+    apiVersions: ["v2", "v2beta2", "v2beta1"]
+    resources: ["horizontalpodautoscalers"]
+  # 名前空間フィルタリング（system名前空間を除外）
+  namespaceSelector:
+    matchExpressions:
+    - key: name
+      operator: NotIn
+      values: ["kube-system", "kube-public", "kube-node-lease"]
+  # オブジェクトフィルタリング（テスト用リソースを除外）
+  objectSelector:
+    matchExpressions:
+    - key: k8s-deployment-hpa-validator.io/skip-validation
+      operator: NotIn
+      values: ["true"]
+  admissionReviewVersions: ["v1", "v1beta1"]
+  sideEffects: None
+  failurePolicy: Fail
+  timeoutSeconds: 10

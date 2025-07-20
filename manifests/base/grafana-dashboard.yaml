@@ -1,0 +1,300 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: k8s-deployment-hpa-validator-dashboard
+  labels:
+    app: k8s-deployment-hpa-validator
+    component: monitoring
+    grafana_dashboard: "1"
+data:
+  dashboard.json: |
+    {
+      "dashboard": {
+        "id": null,
+        "title": "K8s Deployment HPA Validator",
+        "tags": ["kubernetes", "webhook", "validation"],
+        "style": "dark",
+        "timezone": "browser",
+        "panels": [
+          {
+            "id": 1,
+            "title": "Webhook Status",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "webhook_up",
+                "legendFormat": "Status"
+              }
+            ],
+            "fieldConfig": {
+              "defaults": {
+                "mappings": [
+                  {
+                    "options": {
+                      "0": {
+                        "text": "DOWN",
+                        "color": "red"
+                      },
+                      "1": {
+                        "text": "UP",
+                        "color": "green"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              }
+            },
+            "gridPos": {
+              "h": 8,
+              "w": 12,
+              "x": 0,
+              "y": 0
+            }
+          },
+          {
+            "id": 2,
+            "title": "Request Rate",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "rate(webhook_requests_total[5m])",
+                "legendFormat": "{{method}} {{status}}"
+              }
+            ],
+            "yAxes": [
+              {
+                "label": "Requests/sec"
+              }
+            ],
+            "gridPos": {
+              "h": 8,
+              "w": 12,
+              "x": 12,
+              "y": 0
+            }
+          },
+          {
+            "id": 3,
+            "title": "Response Time",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "histogram_quantile(0.50, rate(webhook_request_duration_seconds_bucket[5m]))",
+                "legendFormat": "50th percentile"
+              },
+              {
+                "expr": "histogram_quantile(0.95, rate(webhook_request_duration_seconds_bucket[5m]))",
+                "legendFormat": "95th percentile"
+              },
+              {
+                "expr": "histogram_quantile(0.99, rate(webhook_request_duration_seconds_bucket[5m]))",
+                "legendFormat": "99th percentile"
+              }
+            ],
+            "yAxes": [
+              {
+                "label": "Seconds"
+              }
+            ],
+            "gridPos": {
+              "h": 8,
+              "w": 12,
+              "x": 0,
+              "y": 8
+            }
+          },
+          {
+            "id": 4,
+            "title": "Error Rate",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "rate(webhook_requests_total{status=\"error\"}[5m]) / rate(webhook_requests_total[5m])",
+                "legendFormat": "Error Rate"
+              }
+            ],
+            "yAxes": [
+              {
+                "label": "Percentage",
+                "max": 1,
+                "min": 0
+              }
+            ],
+            "gridPos": {
+              "h": 8,
+              "w": 12,
+              "x": 12,
+              "y": 8
+            }
+          },
+          {
+            "id": 5,
+            "title": "Validation Errors by Type",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "rate(webhook_validation_errors_total[5m])",
+                "legendFormat": "{{error_type}} - {{resource_type}}"
+              }
+            ],
+            "yAxes": [
+              {
+                "label": "Errors/sec"
+              }
+            ],
+            "gridPos": {
+              "h": 8,
+              "w": 12,
+              "x": 0,
+              "y": 16
+            }
+          },
+          {
+            "id": 6,
+            "title": "Certificate Expiry Days",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "webhook_certificate_expiry_days",
+                "legendFormat": "{{cert_file}}"
+              }
+            ],
+            "fieldConfig": {
+              "defaults": {
+                "unit": "days",
+                "thresholds": {
+                  "steps": [
+                    {
+                      "color": "red",
+                      "value": 0
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 7
+                    },
+                    {
+                      "color": "green",
+                      "value": 30
+                    }
+                  ]
+                }
+              }
+            },
+            "gridPos": {
+              "h": 4,
+              "w": 6,
+              "x": 12,
+              "y": 16
+            }
+          },
+          {
+            "id": 8,
+            "title": "Certificate Valid",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "webhook_certificate_valid",
+                "legendFormat": "{{cert_file}}"
+              }
+            ],
+            "fieldConfig": {
+              "defaults": {
+                "mappings": [
+                  {
+                    "options": {
+                      "0": {
+                        "text": "INVALID",
+                        "color": "red"
+                      },
+                      "1": {
+                        "text": "VALID",
+                        "color": "green"
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              }
+            },
+            "gridPos": {
+              "h": 4,
+              "w": 6,
+              "x": 18,
+              "y": 16
+            }
+          },
+          {
+            "id": 9,
+            "title": "Certificate Reload Rate",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "rate(webhook_certificate_reloads_total[5m])",
+                "legendFormat": "{{cert_file}} - {{status}}"
+              }
+            ],
+            "yAxes": [
+              {
+                "label": "Reloads/sec"
+              }
+            ],
+            "gridPos": {
+              "h": 4,
+              "w": 12,
+              "x": 12,
+              "y": 20
+            }
+          },
+          {
+            "id": 10,
+            "title": "Certificate Monitoring Errors",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "rate(webhook_certificate_monitoring_errors_total[5m])",
+                "legendFormat": "{{cert_file}} - {{error_type}}"
+              }
+            ],
+            "yAxes": [
+              {
+                "label": "Errors/sec"
+              }
+            ],
+            "gridPos": {
+              "h": 8,
+              "w": 12,
+              "x": 0,
+              "y": 24
+            }
+          },
+          {
+            "id": 7,
+            "title": "Kubernetes API Requests",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "rate(webhook_kubernetes_api_requests_total[5m])",
+                "legendFormat": "{{method}} {{resource}} - {{status}}"
+              }
+            ],
+            "yAxes": [
+              {
+                "label": "Requests/sec"
+              }
+            ],
+            "gridPos": {
+              "h": 8,
+              "w": 24,
+              "x": 0,
+              "y": 24
+            }
+          }
+        ],
+        "time": {
+          "from": "now-1h",
+          "to": "now"
+        },
+        "refresh": "30s"
+      }
+    }

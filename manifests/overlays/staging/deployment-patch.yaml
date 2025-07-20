@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: k8s-deployment-hpa-validator
+spec:
+  replicas: 2
+  template:
+    spec:
+      containers:
+      - name: webhook
+        # ステージング環境用のリソース制限
+        resources:
+          limits:
+            cpu: 300m
+            memory: 192Mi
+          requests:
+            cpu: 75m
+            memory: 96Mi
+        # ステージング環境用の環境変数
+        env:
+        - name: ENVIRONMENT
+          value: "staging"
+        - name: CLUSTER_NAME
+          value: "staging-cluster"
+        # プローブの設定を本番に近づける
+        livenessProbe:
+          initialDelaySeconds: 8
+          periodSeconds: 15
+          timeoutSeconds: 8
+          failureThreshold: 3
+        readinessProbe:
+          initialDelaySeconds: 5
+          periodSeconds: 8
+          timeoutSeconds: 5
+          failureThreshold: 3
+      # ステージング環境用のtoleration
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+        effect: NoSchedule
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
+      # アフィニティ設定（本番に近い設定）
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app: k8s-deployment-hpa-validator
+              topologyKey: kubernetes.io/hostname

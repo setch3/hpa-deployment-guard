@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: k8s-deployment-hpa-validator
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+      - name: webhook
+        # 開発環境用のリソース制限（軽量化）
+        resources:
+          limits:
+            cpu: 100m
+            memory: 64Mi
+          requests:
+            cpu: 25m
+            memory: 32Mi
+        # 開発環境用の環境変数
+        env:
+        - name: ENVIRONMENT
+          value: "development"
+        - name: DEBUG_MODE
+          value: "true"
+        # プローブの設定を緩和
+        livenessProbe:
+          initialDelaySeconds: 5
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 5
+        readinessProbe:
+          initialDelaySeconds: 3
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 5
+      # 開発環境では制約を緩和
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+        effect: NoSchedule
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
+      # アフィニティ設定を削除（単一レプリカのため）
+      affinity: {}
