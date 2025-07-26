@@ -255,8 +255,24 @@ check_prerequisites() {
     
     # cmd/webhook/main.go の存在確認
     log_debug "メインソースファイルの存在を確認中..."
-    if [[ ! -f "cmd/webhook/main.go" ]]; then
-        log_warn "cmd/webhook/main.go が見つかりません。ソースコードの構造が変更されている可能性があります。"
+    if [[ ! -d "cmd" ]]; then
+        log_error "cmd ディレクトリが見つかりません。"
+        show_error_solution "E002" "cmd ディレクトリが見つかりません。正しいプロジェクトルートで実行してください。"
+        log_info "現在のディレクトリ: $(pwd)"
+        log_info "ディレクトリ構造: $(ls -la)"
+        exit 1
+    elif [[ ! -d "cmd/webhook" ]]; then
+        log_error "cmd/webhook ディレクトリが見つかりません。"
+        show_error_solution "E002" "cmd/webhook ディレクトリが見つかりません。プロジェクト構造を確認してください。"
+        log_info "現在のディレクトリ: $(pwd)"
+        log_info "cmd ディレクトリの内容: $(ls -la cmd/ 2>/dev/null || echo 'cmd ディレクトリが存在しません')"
+        exit 1
+    elif [[ ! -f "cmd/webhook/main.go" ]]; then
+        log_error "cmd/webhook/main.go が見つかりません。"
+        show_error_solution "E002" "cmd/webhook/main.go が見つかりません。ソースコードの構造を確認してください。"
+        log_info "現在のディレクトリ: $(pwd)"
+        log_info "cmd/webhook ディレクトリの内容: $(ls -la cmd/webhook/ 2>/dev/null || echo 'cmd/webhook ディレクトリが存在しません')"
+        exit 1
     else
         log_debug "メインソースファイルが見つかりました: $(ls -la cmd/webhook/main.go)"
     fi
@@ -521,6 +537,14 @@ test_build() {
     
     # ビルドテスト
     log_info "アプリケーションのビルドテストを実行中..."
+    
+    # ビルド前の環境確認
+    log_debug "ビルド環境の確認:"
+    log_debug "  現在のディレクトリ: $(pwd)"
+    log_debug "  Go バージョン: $(go version)"
+    log_debug "  Go モジュール: $(grep "^module" go.mod 2>/dev/null || echo 'go.mod が見つかりません')"
+    log_debug "  cmd/webhook/main.go の存在: $(test -f cmd/webhook/main.go && echo '存在' || echo '存在しません')"
+    
     local build_output
     if build_output=$(go build -o /tmp/webhook-test ./cmd/webhook 2>&1); then
         log_info "アプリケーションのビルドテストが成功しました"
@@ -529,6 +553,22 @@ test_build() {
         echo "--- ビルドエラー出力 ---"
         echo "${build_output}"
         echo "--- ビルドエラー出力終了 ---"
+        
+        # 詳細なデバッグ情報を追加
+        log_error "💡 ビルドエラーの詳細分析:"
+        log_info "  現在のディレクトリ: $(pwd)"
+        log_info "  Go モジュール名: $(grep "^module" go.mod 2>/dev/null || echo 'go.mod が見つかりません')"
+        log_info "  ディレクトリ構造:"
+        ls -la cmd/ 2>/dev/null || log_error "    cmd/ ディレクトリが存在しません"
+        ls -la cmd/webhook/ 2>/dev/null || log_error "    cmd/webhook/ ディレクトリが存在しません"
+        
+        # プロジェクト名の不一致チェック
+        local current_dir=$(basename "$(pwd)")
+        local module_name=$(grep "^module" go.mod 2>/dev/null | awk '{print $2}')
+        if [[ "${current_dir}" != "${module_name}" ]]; then
+            log_warn "  プロジェクトディレクトリ名 '${current_dir}' とgo.modのモジュール名 '${module_name}' が一致しません"
+            log_info "  これが原因でビルドエラーが発生している可能性があります"
+        fi
         
         # エラーメッセージの改善
         log_error "💡 考えられる原因:"

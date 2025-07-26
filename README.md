@@ -396,7 +396,30 @@ timeoutSeconds: 10
 
 ### よくある問題と解決方法
 
-#### 1. Dockerイメージのビルドエラー
+#### 1. プロジェクト構造エラー
+
+**症状:**
+```bash
+./scripts/build-image.sh
+/Users/xxxxx/hpa-deployment-guard/cmd/webhook: directory not found
+```
+
+**解決方法:**
+```bash
+# 現在のディレクトリとモジュール名の確認
+pwd
+grep "^module" go.mod
+
+# 正しいプロジェクトディレクトリで実行しているか確認
+ls -la cmd/webhook/main.go
+
+# プロジェクトディレクトリ名が古い場合は修正
+cd ..
+mv hpa-deployment-guard k8s-deployment-hpa-validator
+cd k8s-deployment-hpa-validator
+```
+
+#### 2. Dockerイメージのビルドエラー
 
 **症状:**
 ```bash
@@ -420,7 +443,7 @@ DEBUG=true ./scripts/build-image.sh
 ./scripts/build-image.sh --force-build
 ```
 
-#### 2. E2Eテスト実行時のイメージ不足エラー
+#### 3. E2Eテスト実行時のイメージ不足エラー
 
 **症状:**
 ```bash
@@ -441,7 +464,7 @@ make e2e-full
 ./scripts/run-e2e-tests.sh --auto-build
 ```
 
-#### 3. テスト環境の状態確認
+#### 4. テスト環境の状態確認
 
 **症状:**
 - テストが予期しない動作をする
@@ -459,7 +482,7 @@ make e2e-full
 ./scripts/check-test-environment.sh --fix
 ```
 
-#### 4. Webhook Podが起動しない
+#### 5. Webhook Podが起動しない
 
 **症状:**
 ```bash
@@ -483,7 +506,7 @@ make build-image-only
 kind load docker-image hpa-validator:latest --name hpa-validator-cluster
 ```
 
-#### 5. 証明書エラー
+#### 6. 証明書エラー
 
 **症状:**
 ```
@@ -502,7 +525,7 @@ kubectl patch validatingwebhookconfiguration hpa-deployment-validator \
   -p="[{'op': 'replace', 'path': '/webhooks/0/clientConfig/caBundle', 'value': '${CA_BUNDLE}'}]"
 ```
 
-#### 6. Webhookが呼び出されない
+#### 7. Webhookが呼び出されない
 
 **症状:**
 - DeploymentやHPAが作成されるがWebhookが実行されない
@@ -519,7 +542,7 @@ kubectl get service k8s-deployment-hpa-validator
 kubectl exec -it <webhook-pod> -- wget -qO- https://kubernetes.default.svc.cluster.local/api/v1/namespaces
 ```
 
-#### 7. RBAC権限エラー
+#### 8. RBAC権限エラー
 
 **症状:**
 ```
@@ -535,7 +558,7 @@ forbidden: User "system:serviceaccount:default:k8s-deployment-hpa-validator" can
 kubectl apply -f manifests/rbac.yaml
 ```
 
-#### 8. E2Eテストの失敗
+#### 9. E2Eテストの失敗
 
 **症状:**
 - テストが途中で失敗する

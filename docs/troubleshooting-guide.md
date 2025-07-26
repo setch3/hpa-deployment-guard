@@ -78,7 +78,39 @@ Build aborted due to test failure
 TEST_CATEGORIES=unit ./scripts/build-image.sh
 ```
 
-### B003: Go依存関係の問題
+### B003: プロジェクト構造の問題
+
+**症状:**
+```bash
+./scripts/build-image.sh
+/Users/xxxxx/hpa-deployment-guard/cmd/webhook: directory not found
+```
+
+**原因:**
+- プロジェクトディレクトリ名とgo.modのモジュール名が一致しない
+- 古いプロジェクト名のディレクトリで実行している
+- cmd/webhookディレクトリが存在しない
+
+**解決方法:**
+```bash
+# 1. 現在のディレクトリとモジュール名の確認
+pwd
+grep "^module" go.mod
+
+# 2. 正しいプロジェクトディレクトリで実行しているか確認
+ls -la cmd/webhook/main.go
+
+# 3. プロジェクトディレクトリ名を修正
+cd ..
+mv hpa-deployment-guard k8s-deployment-hpa-validator
+cd k8s-deployment-hpa-validator
+
+# 4. ディレクトリ構造の確認
+ls -la cmd/
+ls -la cmd/webhook/
+```
+
+### B004: Go依存関係の問題
 
 **症状:**
 ```bash
@@ -789,6 +821,7 @@ sudo rm -rf /tmp/*
 | E001 | Dockerデーモンが起動していない | `sudo systemctl start docker` |
 | E002 | プロジェクトファイルが見つからない | プロジェクトルートで実行 |
 | E003 | テスト失敗によるビルド中止 | `--force-build` オプション使用 |
+| E003 | プロジェクト構造の問題 | プロジェクトディレクトリ名の確認と修正 |
 | E004 | Go依存関係の問題 | `go mod tidy` 実行 |
 | E005 | 証明書関連のエラー | `./scripts/generate-certs.sh` 実行 |
 | E006 | ディスク容量不足 | `docker system prune -a` 実行 |
