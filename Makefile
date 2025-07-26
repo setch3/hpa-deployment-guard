@@ -104,6 +104,18 @@ build:
 	@echo "バイナリをビルド中..."
 	go build -o $(BINARY_NAME) ./cmd/webhook
 
+build-image:
+	@echo "Dockerイメージをビルド中..."
+	./scripts/build-image.sh
+
+build-image-only:
+	@echo "Dockerイメージをビルド中（テストをスキップ）..."
+	./scripts/build-image.sh --skip-tests
+
+build-image-force:
+	@echo "Dockerイメージをビルド中（テスト失敗時でも強制続行）..."
+	./scripts/build-image.sh --force-build
+
 clean:
 	@echo "クリーンアップ中..."
 	rm -f $(BINARY_NAME)
@@ -122,6 +134,11 @@ deploy-webhook:
 e2e-full:
 	@echo "完全なE2Eテストフローを実行中..."
 	./scripts/run-e2e-tests.sh
+
+# E2Eテストフロー（自動イメージビルド付き）
+e2e-full-auto:
+	@echo "完全なE2Eテストフローを実行中（必要に応じて自動イメージビルド）..."
+	./scripts/run-e2e-tests.sh --auto-build
 
 # E2Eテストフロー（環境セットアップをスキップ）
 e2e-quick:
@@ -182,10 +199,14 @@ help:
 	@echo "  test-argocd-cleanup - ArgoCD統合テスト環境をクリーンアップ"
 	@echo "  test-e2e      - E2Eテストのみ実行"
 	@echo "  e2e-full      - 完全なE2Eテストフロー（環境セットアップ含む）"
+	@echo "  e2e-full-auto - 完全なE2Eテストフロー（イメージが存在しない場合は自動ビルド）"
 	@echo "  e2e-quick     - E2Eテスト実行（環境セットアップをスキップ）"
 	@echo ""
 	@echo "ビルド関連:"
 	@echo "  build         - バイナリをビルド"
+	@echo "  build-image   - Dockerイメージをビルド"
+	@echo "  build-image-only - Dockerイメージをビルド（テストをスキップ）"
+	@echo "  build-image-force - Dockerイメージをビルド（テスト失敗時でも強制続行）"
 	@echo "  clean         - ビルド成果物をクリーンアップ"
 	@echo ""
 	@echo "環境セットアップ:"
