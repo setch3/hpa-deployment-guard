@@ -11,6 +11,8 @@ import (
 var (
 	metricsInitialized bool
 	metricsInitMutex   sync.Mutex
+	testRegistry       *prometheus.Registry
+	isTestMode         bool
 )
 
 // WebhookError は循環インポートを避けるためのインターフェース
@@ -22,58 +24,12 @@ type WebhookError interface {
 
 // メトリクス定義
 var (
-	// webhook_requests_total - webhookリクエストの総数
-	WebhookRequestsTotal = promauto.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "webhook_requests_total",
-			Help: "webhookリクエストの総数",
-		},
-		[]string{"method", "status", "resource_type"},
-	)
-
-	// webhook_request_duration_seconds - webhookリクエストの処理時間
-	WebhookRequestDuration = promauto.NewHistogramVec(
-		prometheus.HistogramOpts{
-			Name:    "webhook_request_duration_seconds",
-			Help:    "webhookリクエストの処理時間（秒）",
-			Buckets: prometheus.DefBuckets,
-		},
-		[]string{"method", "resource_type"},
-	)
-
-	// webhook_validation_errors_total - バリデーションエラーの総数
-	WebhookValidationErrors = promauto.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "webhook_validation_errors_total",
-			Help: "バリデーションエラーの総数",
-		},
-		[]string{"error_type", "resource_type"},
-	)
-
-	// webhook_certificate_expiry_days - 証明書の有効期限までの日数
-	WebhookCertificateExpiryDays = promauto.NewGauge(
-		prometheus.GaugeOpts{
-			Name: "webhook_certificate_expiry_days",
-			Help: "証明書の有効期限までの日数",
-		},
-	)
-
-	// webhook_kubernetes_api_requests_total - Kubernetes APIリクエストの総数
-	WebhookKubernetesAPIRequests = promauto.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "webhook_kubernetes_api_requests_total",
-			Help: "Kubernetes APIリクエストの総数",
-		},
-		[]string{"method", "resource", "status"},
-	)
-
-	// webhook_up - webhookサービスの稼働状態
-	WebhookUp = promauto.NewGauge(
-		prometheus.GaugeOpts{
-			Name: "webhook_up",
-			Help: "webhookサービスの稼働状態（1=稼働中、0=停止中）",
-		},
-	)
+	WebhookRequestsTotal         *prometheus.CounterVec
+	WebhookRequestDuration       *prometheus.HistogramVec
+	WebhookValidationErrors      *prometheus.CounterVec
+	WebhookCertificateExpiryDays prometheus.Gauge
+	WebhookKubernetesAPIRequests *prometheus.CounterVec
+	WebhookUp                    prometheus.Gauge
 )
 
 // RequestMetrics はリクエストメトリクスを記録するための構造体
@@ -142,18 +98,103 @@ func SetWebhookUp(up bool) {
 	}
 }
 
+// EnableTestMode はテストモードを有効にする
+func EnableTestMode() {
+	metricsInitMutex.Lock()
+	defer metricsInitMutex.Unlock()
+	
+	isTestMode = true
+	testRegistry = prometheus.NewRegistry()
+	initializeMetrics()
+}
+
+// DisableTestMode はテストモードを無効にする
+func DisableTestMode() {
+	metricsInitMutex.Lock()
+	defer metricsInitMutex.Unlock()
+	
+	isTestMode = false
+	testRegistry = nil
+	metricsInitialized = false
+}
+
+// initializeMetrics はメトリクスを初期化する
+func initializeMetrics() {
+	if metricsInitialized {
+		return
+	}
+	
+	var factory promauto.Factory
+	if isTestMode && testRegistry != nil {
+		factory = promauto.With(testRegistry)
+	} else {
+		factory = promauto.Factory{}
+	}
+	
+	// webhook_requests_total - webhookリクエストの総数
+	WebhookRequestsTotal = factory.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "webhook_requests_total",
+			Help: "webhookリクエストの総数",
+		},
+		[]string{"method", "status", "resource_type"},
+	)
+
+	// webhook_request_duration_seconds - webhookリクエストの処理時間
+	WebhookRequestDuration = factory.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "webhook_request_duration_seconds",
+			Help:    "webhookリクエストの処理時間（秒）",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"method", "resource_type"},
+	)
+
+	// webhook_validation_errors_total - バリデーションエラーの総数
+	WebhookValidationErrors = factory.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "webhook_validation_errors_total",
+			Help: "バリデーションエラーの総数",
+		},
+		[]string{"error_type", "resource_type"},
+	)
+
+	// webhook_certificate_expiry_days - 証明書の有効期限までの日数
+	WebhookCertificateExpiryDays = factory.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "webhook_certificate_expiry_days",
+			Help: "証明書の有効期限までの日数",
+		},
+	)
+
+	// webhook_kubernetes_api_requests_total - Kubernetes APIリクエストの総数
+	WebhookKubernetesAPIRequests = factory.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "webhook_kubernetes_api_requests_total",
+			Help: "Kubernetes APIリクエストの総数",
+		},
+		[]string{"method", "resource", "status"},
+	)
+
+	// webhook_up - webhookサービスの稼働状態
+	WebhookUp = factory.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "webhook_up",
+			Help: "webhookサービスの稼働状態（1=稼働中、0=停止中）",
+		},
+	)
+	
+	// 初期状態でwebhookを稼働中に設定
+	SetWebhookUp(true)
+	metricsInitialized = true
+}
+
 // InitMetrics はメトリクスの初期化を行う（テスト用）
 func InitMetrics() {
 	metricsInitMutex.Lock()
 	defer metricsInitMutex.Unlock()
 	
-	if metricsInitialized {
-		return
-	}
-	
-	// 初期状態でwebhookを稼働中に設定
-	SetWebhookUp(true)
-	metricsInitialized = true
+	initializeMetrics()
 }
 
 // ResetMetrics はメトリクスをリセットする（テスト用）
@@ -162,6 +203,10 @@ func ResetMetrics() {
 	defer metricsInitMutex.Unlock()
 	
 	metricsInitialized = false
+	if isTestMode {
+		testRegistry = prometheus.NewRegistry()
+		initializeMetrics()
+	}
 }
 
 // init はメトリクスの初期化を行う

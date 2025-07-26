@@ -18,8 +18,14 @@ import (
 
 	"k8s-deployment-hpa-validator/internal/config"
 	"k8s-deployment-hpa-validator/internal/logging"
+	"k8s-deployment-hpa-validator/internal/metrics"
 	"k8s-deployment-hpa-validator/internal/validator"
 )
+
+func init() {
+	// テストモードを有効にしてメトリクスの重複登録を防ぐ
+	metrics.EnableTestMode()
+}
 
 func TestServer_validateAdmissionRequest(t *testing.T) {
 	// Create fake Kubernetes client
