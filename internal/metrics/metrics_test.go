@@ -7,6 +7,11 @@ import (
 	dto "github.com/prometheus/client_model/go"
 )
 
+func init() {
+	// テストモードを有効にしてメトリクスの重複登録を防ぐ
+	EnableTestMode()
+}
+
 func TestRequestMetrics(t *testing.T) {
 	// メトリクスをリセット
 	WebhookRequestsTotal.Reset()
