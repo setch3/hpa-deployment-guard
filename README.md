@@ -40,12 +40,23 @@ kind version
 
 ## クイックスタート
 
-### 1. リポジトリのクローン
+### 1. リポジトリのクローンと初期セットアップ
 
 ```bash
 git clone <repository-url>
 cd k8s-deployment-hpa-validator
+
+# 新しい環境での初期セットアップ（推奨）
+./scripts/setup-new-environment.sh
 ```
+
+**新しい環境セットアップスクリプトの機能:**
+- 前提条件の自動チェック（Git、Go、Docker、kubectl、kind）
+- プロジェクト構造の確認と自動修復
+- Go依存関係の更新と検証
+- ビルドテストの実行
+- 必要なディレクトリの作成
+- スクリプトの実行権限設定
 
 ### 2. kind環境でのテスト実行
 
@@ -402,6 +413,8 @@ timeoutSeconds: 10
 ```bash
 ./scripts/build-image.sh
 /Users/xxxxx/hpa-deployment-guard/cmd/webhook: directory not found
+# または
+ls: cmd/webhook/main.go: No such file or directory
 ```
 
 **解決方法:**
@@ -417,6 +430,11 @@ ls -la cmd/webhook/main.go
 cd ..
 mv hpa-deployment-guard k8s-deployment-hpa-validator
 cd k8s-deployment-hpa-validator
+
+# ファイルが欠落している場合はGitから復元
+git status
+git checkout HEAD -- cmd/
+git pull origin main
 ```
 
 #### 2. Dockerイメージのビルドエラー
