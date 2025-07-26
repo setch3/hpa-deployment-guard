@@ -53,11 +53,23 @@ cd k8s-deployment-hpa-validator
 # 完全なE2Eテストフロー（環境セットアップ含む）
 make e2e-full
 
+# 必要に応じて自動的にイメージをビルドしてE2Eテストを実行
+make e2e-full-auto
+
+# 環境セットアップをスキップしてE2Eテストのみ実行
+make e2e-quick
+
 # または手動でステップ実行
 make setup-kind      # kind環境セットアップ
 make deploy-webhook  # Webhookデプロイ
 make test-e2e       # E2Eテスト実行
 ```
+
+**新しいE2Eテストオプション:**
+- `make e2e-full-auto`: イメージが存在しない場合に自動的にビルドしてからE2Eテストを実行（要件1.1対応）
+- `make e2e-quick`: 環境セットアップをスキップしてテストのみ実行
+- `make build-image-only`: テストをスキップしてイメージのみビルド
+- `make build-image-force`: テスト失敗時でも強制的にイメージをビルド
 
 ### 3. 本番環境へのデプロイ
 
@@ -168,11 +180,30 @@ make build
 #### 4.1 イメージビルド
 
 ```bash
-# Dockerイメージビルド
+# 通常のイメージビルド（テスト実行後にビルド）
 ./scripts/build-image.sh
+
+# テストをスキップしてイメージのみビルド
+./scripts/build-image.sh --skip-tests
+
+# テスト失敗時でも強制的にイメージをビルド
+./scripts/build-image.sh --force-build
 
 # イメージ確認
 docker images | grep hpa-validator
+```
+
+**新しいビルドオプション:**
+- `--skip-tests`: テストの実行をスキップしてイメージのみをビルドします（要件1.3対応）
+- `--force-build`: テストが失敗してもビルドを強制的に続行します（要件1.2対応）
+- `--help`: 使用方法とオプションの詳細を表示します
+
+**環境変数による制御:**
+```bash
+# 環境変数でオプションを制御
+SKIP_TESTS=true ./scripts/build-image.sh
+FORCE_BUILD=true ./scripts/build-image.sh
+DEBUG=true ./scripts/build-image.sh  # 詳細なデバッグ情報を表示
 ```
 
 #### 4.2 kindクラスターへのイメージロード
@@ -258,8 +289,14 @@ kubectl get service k8s-deployment-hpa-validator
 # 環境セットアップからテスト実行まで全自動
 make e2e-full
 
-# または
+# 必要に応じて自動的にイメージをビルドしてE2Eテストを実行
+make e2e-full-auto
+
+# または直接スクリプト実行
 ./scripts/run-e2e-tests.sh
+
+# 自動イメージビルド付きでスクリプト実行
+./scripts/run-e2e-tests.sh --auto-build
 ```
 
 #### 7.2 既存環境でのテスト実行
@@ -272,7 +309,20 @@ make e2e-quick
 ./scripts/run-e2e-tests.sh --skip-setup
 ```
 
-#### 7.3 個別テストケース
+#### 7.3 テストカテゴリの制御
+
+```bash
+# 特定のテストカテゴリをスキップ
+./scripts/run-e2e-tests.sh --skip-category=monitoring
+
+# 複数のカテゴリをスキップ
+SKIP_CATEGORIES=monitoring,performance ./scripts/run-e2e-tests.sh
+
+# 環境変数でテスト動作をカスタマイズ
+AUTO_BUILD=true ./scripts/run-e2e-tests.sh
+```
+
+#### 7.4 個別テストケース
 
 ```bash
 # Go E2Eテストを直接実行
@@ -282,9 +332,24 @@ go test -v -tags=e2e ./test/e2e
 go test -v -tags=e2e ./test/e2e -run TestValidateDeploymentWithHPA
 ```
 
+#### 7.5 テスト環境の状態確認
+
+```bash
+# テスト環境の状態を確認
+./scripts/check-test-environment.sh
+
+# 詳細な状態情報を表示
+./scripts/check-test-environment.sh --verbose
+
+# 問題を自動修復
+./scripts/check-test-environment.sh --fix
+```
+
 ## 設定オプション
 
 ### 環境変数
+
+#### Webhook実行時の環境変数
 
 | 変数名 | デフォルト値 | 説明 |
 |--------|-------------|------|
@@ -292,6 +357,17 @@ go test -v -tags=e2e ./test/e2e -run TestValidateDeploymentWithHPA
 | `CERT_FILE` | `/etc/certs/tls.crt` | TLS証明書ファイルパス |
 | `KEY_FILE` | `/etc/certs/tls.key` | TLS秘密鍵ファイルパス |
 | `LOG_LEVEL` | `info` | ログレベル (debug, info, warn, error) |
+
+#### ビルド・テスト時の環境変数
+
+| 変数名 | デフォルト値 | 説明 |
+|--------|-------------|------|
+| `SKIP_TESTS` | `false` | テストをスキップしてイメージのみビルド |
+| `FORCE_BUILD` | `false` | テスト失敗時でもビルドを強制続行 |
+| `AUTO_BUILD` | `false` | イメージが存在しない場合に自動ビルド |
+| `SKIP_CATEGORIES` | - | スキップするテストカテゴリ（カンマ区切り） |
+| `TEST_TIMEOUT` | `30s` | テストのタイムアウト時間 |
+| `DEBUG` | `false` | 詳細なデバッグ情報を表示 |
 
 ### Webhookの設定
 
@@ -320,7 +396,70 @@ timeoutSeconds: 10
 
 ### よくある問題と解決方法
 
-#### 1. Webhook Podが起動しない
+#### 1. Dockerイメージのビルドエラー
+
+**症状:**
+```bash
+./scripts/build-image.sh
+# テストが失敗してビルドが中止される
+```
+
+**解決方法:**
+```bash
+# テストをスキップしてイメージのみビルド
+./scripts/build-image.sh --skip-tests
+
+# テスト失敗時でも強制的にビルド
+./scripts/build-image.sh --force-build
+
+# 詳細なエラー情報を表示
+DEBUG=true ./scripts/build-image.sh
+
+# 証明書エラーの場合
+./scripts/generate-certs.sh
+./scripts/build-image.sh --force-build
+```
+
+#### 2. E2Eテスト実行時のイメージ不足エラー
+
+**症状:**
+```bash
+make e2e-full
+# Error: image "hpa-validator:latest" not found
+```
+
+**解決方法:**
+```bash
+# 自動イメージビルド付きでE2Eテスト実行
+make e2e-full-auto
+
+# または手動でイメージをビルド
+make build-image-only
+make e2e-full
+
+# スクリプトで自動ビルド
+./scripts/run-e2e-tests.sh --auto-build
+```
+
+#### 3. テスト環境の状態確認
+
+**症状:**
+- テストが予期しない動作をする
+- 環境の状態が不明
+
+**解決方法:**
+```bash
+# テスト環境の状態を確認
+./scripts/check-test-environment.sh
+
+# 詳細な状態情報を表示
+./scripts/check-test-environment.sh --verbose
+
+# 問題を自動修復
+./scripts/check-test-environment.sh --fix
+```
+
+#### 4. Webhook Podが起動しない
 
 **症状:**
 ```bash
@@ -338,9 +477,13 @@ kubectl describe pods -l app=k8s-deployment-hpa-validator
 
 # kindクラスターにイメージが正しくロードされているか確認
 docker exec -it hpa-validator-cluster-control-plane crictl images | grep hpa-validator
+
+# イメージが見つからない場合
+make build-image-only
+kind load docker-image hpa-validator:latest --name hpa-validator-cluster
 ```
 
-#### 2. 証明書エラー
+#### 5. 証明書エラー
 
 **症状:**
 ```
@@ -359,7 +502,7 @@ kubectl patch validatingwebhookconfiguration hpa-deployment-validator \
   -p="[{'op': 'replace', 'path': '/webhooks/0/clientConfig/caBundle', 'value': '${CA_BUNDLE}'}]"
 ```
 
-#### 3. Webhookが呼び出されない
+#### 6. Webhookが呼び出されない
 
 **症状:**
 - DeploymentやHPAが作成されるがWebhookが実行されない
@@ -376,7 +519,7 @@ kubectl get service k8s-deployment-hpa-validator
 kubectl exec -it <webhook-pod> -- wget -qO- https://kubernetes.default.svc.cluster.local/api/v1/namespaces
 ```
 
-#### 4. RBAC権限エラー
+#### 7. RBAC権限エラー
 
 **症状:**
 ```
@@ -392,7 +535,7 @@ forbidden: User "system:serviceaccount:default:k8s-deployment-hpa-validator" can
 kubectl apply -f manifests/rbac.yaml
 ```
 
-#### 5. E2Eテストの失敗
+#### 8. E2Eテストの失敗
 
 **症状:**
 - テストが途中で失敗する
@@ -409,6 +552,9 @@ make deploy-webhook
 
 # テスト実行
 make test-e2e
+
+# 特定のテストカテゴリをスキップ
+SKIP_CATEGORIES=monitoring make e2e-full
 ```
 
 ### デバッグ用コマンド
@@ -428,6 +574,15 @@ kubectl exec -it <webhook-pod> -- netstat -tlnp
 
 # 証明書の詳細確認
 openssl x509 -in certs/tls.crt -text -noout
+
+# テスト環境の詳細状態確認
+./scripts/check-test-environment.sh --verbose
+
+# ビルドプロセスのデバッグ
+DEBUG=true ./scripts/build-image.sh
+
+# E2Eテストのデバッグ情報
+DEBUG=true ./scripts/run-e2e-tests.sh
 ```
 
 ### ログレベルの変更
