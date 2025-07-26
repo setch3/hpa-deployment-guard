@@ -110,7 +110,45 @@ ls -la cmd/
 ls -la cmd/webhook/
 ```
 
-### B004: Go依存関係の問題
+### B004: Gitリポジトリからのファイル欠落
+
+**症状:**
+```bash
+ls -la cmd/webhook/main.go
+ls: cmd/webhook/main.go: No such file or directory
+```
+
+**原因:**
+- Gitクローン時にファイルが正しく取得されなかった
+- 部分的なチェックアウトが行われた
+- ファイルが誤って削除された
+- .gitignoreの設定ミス
+
+**解決方法:**
+```bash
+# 1. Gitリポジトリの状態確認
+git status
+git ls-files | grep cmd/
+
+# 2. 欠落ファイルの復元
+git checkout HEAD -- cmd/
+git checkout HEAD -- cmd/webhook/main.go
+
+# 3. 完全なリセット（注意：ローカル変更が失われます）
+git reset --hard HEAD
+git clean -fd
+
+# 4. 最新の変更を取得
+git pull origin main
+
+# 5. リポジトリの再クローン（最終手段）
+cd ..
+rm -rf k8s-deployment-hpa-validator
+git clone <repository-url> k8s-deployment-hpa-validator
+cd k8s-deployment-hpa-validator
+```
+
+### B005: Go依存関係の問題
 
 **症状:**
 ```bash
@@ -823,6 +861,7 @@ sudo rm -rf /tmp/*
 | E003 | テスト失敗によるビルド中止 | `--force-build` オプション使用 |
 | E003 | プロジェクト構造の問題 | プロジェクトディレクトリ名の確認と修正 |
 | E004 | Go依存関係の問題 | `go mod tidy` 実行 |
+| E011 | Gitリポジトリからのファイル欠落 | `git checkout HEAD -- cmd/` 実行 |
 | E005 | 証明書関連のエラー | `./scripts/generate-certs.sh` 実行 |
 | E006 | ディスク容量不足 | `docker system prune -a` 実行 |
 | E007 | テスト環境設定の問題 | `./scripts/check-test-environment.sh` 実行 |

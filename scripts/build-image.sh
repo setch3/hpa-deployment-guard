@@ -103,6 +103,13 @@ show_error_solution() {
             log_info "    $ go version"
             log_info "    推奨バージョン: Go 1.24.2 以上"
             ;;
+        "E011")
+            log_info "💡 解決策: Gitリポジトリからファイルを復元してください"
+            log_info "    $ git status"
+            log_info "    $ git checkout HEAD -- cmd/"
+            log_info "    $ git pull origin main"
+            log_info "    完全なリセット: git reset --hard HEAD"
+            ;;
         *)
             log_info "💡 一般的な解決策:"
             log_info "  1. エラーメッセージを確認して問題を特定"
@@ -253,29 +260,91 @@ check_prerequisites() {
         log_debug "Go モジュール名: $(grep "^module" go.mod | awk '{print $2}')"
     fi
     
-    # cmd/webhook/main.go の存在確認
+    # cmd/webhook/main.go の存在確認と自動修復
     log_debug "メインソースファイルの存在を確認中..."
+    
+    # プロジェクト構造の診断
+    log_debug "プロジェクト構造の診断:"
+    log_debug "  現在のディレクトリ: $(pwd)"
+    log_debug "  ディレクトリ内容: $(ls -la | head -10)"
+    log_debug "  Git状態: $(git status --porcelain 2>/dev/null | head -5 || echo 'Gitリポジトリではありません')"
+    
     if [[ ! -d "cmd" ]]; then
         log_error "cmd ディレクトリが見つかりません。"
-        show_error_solution "E002" "cmd ディレクトリが見つかりません。正しいプロジェクトルートで実行してください。"
-        log_info "現在のディレクトリ: $(pwd)"
-        log_info "ディレクトリ構造: $(ls -la)"
-        exit 1
-    elif [[ ! -d "cmd/webhook" ]]; then
-        log_error "cmd/webhook ディレクトリが見つかりません。"
-        show_error_solution "E002" "cmd/webhook ディレクトリが見つかりません。プロジェクト構造を確認してください。"
-        log_info "現在のディレクトリ: $(pwd)"
-        log_info "cmd ディレクトリの内容: $(ls -la cmd/ 2>/dev/null || echo 'cmd ディレクトリが存在しません')"
-        exit 1
-    elif [[ ! -f "cmd/webhook/main.go" ]]; then
-        log_error "cmd/webhook/main.go が見つかりません。"
-        show_error_solution "E002" "cmd/webhook/main.go が見つかりません。ソースコードの構造を確認してください。"
-        log_info "現在のディレクトリ: $(pwd)"
-        log_info "cmd/webhook ディレクトリの内容: $(ls -la cmd/webhook/ 2>/dev/null || echo 'cmd/webhook ディレクトリが存在しません')"
-        exit 1
-    else
-        log_debug "メインソースファイルが見つかりました: $(ls -la cmd/webhook/main.go)"
+        log_info "🔍 詳細診断:"
+        log_info "  現在のディレクトリ: $(pwd)"
+        log_info "  利用可能なディレクトリ: $(ls -d */ 2>/dev/null | tr '\n' ' ')"
+        
+        # Gitリポジトリの状態確認
+        if git rev-parse --is-inside-work-tree &>/dev/null; then
+            log_info "  Gitリポジトリ内です"
+            log_info "  追跡されていないファイル: $(git ls-files --others --exclude-standard | head -5)"
+            log_info "  欠落している可能性のあるファイル: $(git ls-files | grep '^cmd/' | head -5)"
+            
+            # cmdディレクトリがGitで追跡されているかチェック
+            if git ls-files | grep -q '^cmd/'; then
+                log_warn "cmdディレクトリはGitで追跡されていますが、ローカルに存在しません"
+                log_info "💡 解決策: git checkout HEAD -- cmd/ を実行してファイルを復元してください"
+                
+                # 自動復元を試行
+                log_info "cmdディレクトリの自動復元を試行中..."
+                if git checkout HEAD -- cmd/ 2>/dev/null; then
+                    log_success "cmdディレクトリを自動復元しました"
+                else
+                    log_error "自動復元に失敗しました。手動で復元してください"
+                    show_error_solution "E011" "cmdディレクトリがGitリポジトリから欠落しています"
+                    exit 1
+                fi
+            else
+                log_error "cmdディレクトリがGitで追跡されていません"
+                show_error_solution "E002" "cmd ディレクトリが見つかりません。正しいプロジェクトルートで実行してください。"
+                exit 1
+            fi
+        else
+            show_error_solution "E002" "cmd ディレクトリが見つかりません。正しいプロジェクトルートで実行してください。"
+            exit 1
+        fi
     fi
+    
+    if [[ ! -d "cmd/webhook" ]]; then
+        log_error "cmd/webhook ディレクトリが見つかりません。"
+        log_info "cmd ディレクトリの内容: $(ls -la cmd/ 2>/dev/null || echo 'cmd ディレクトリが存在しません')"
+        
+        # 自動復元を試行
+        if git rev-parse --is-inside-work-tree &>/dev/null && git ls-files | grep -q '^cmd/webhook/'; then
+            log_info "cmd/webhookディレクトリの自動復元を試行中..."
+            if git checkout HEAD -- cmd/webhook/ 2>/dev/null; then
+                log_success "cmd/webhookディレクトリを自動復元しました"
+            else
+                show_error_solution "E011" "cmd/webhookディレクトリがGitリポジトリから欠落しています"
+                exit 1
+            fi
+        else
+            show_error_solution "E002" "cmd/webhook ディレクトリが見つかりません。プロジェクト構造を確認してください。"
+            exit 1
+        fi
+    fi
+    
+    if [[ ! -f "cmd/webhook/main.go" ]]; then
+        log_error "cmd/webhook/main.go が見つかりません。"
+        log_info "cmd/webhook ディレクトリの内容: $(ls -la cmd/webhook/ 2>/dev/null || echo 'cmd/webhook ディレクトリが存在しません')"
+        
+        # 自動復元を試行
+        if git rev-parse --is-inside-work-tree &>/dev/null && git ls-files | grep -q '^cmd/webhook/main.go$'; then
+            log_info "cmd/webhook/main.goファイルの自動復元を試行中..."
+            if git checkout HEAD -- cmd/webhook/main.go 2>/dev/null; then
+                log_success "cmd/webhook/main.goファイルを自動復元しました"
+            else
+                show_error_solution "E011" "cmd/webhook/main.goファイルがGitリポジトリから欠落しています"
+                exit 1
+            fi
+        else
+            show_error_solution "E002" "cmd/webhook/main.go が見つかりません。ソースコードの構造を確認してください。"
+            exit 1
+        fi
+    fi
+    
+    log_debug "メインソースファイルが見つかりました: $(ls -la cmd/webhook/main.go)"
     
     # 証明書ファイルの存在確認（テスト用）
     log_debug "証明書ファイルの存在を確認中..."
